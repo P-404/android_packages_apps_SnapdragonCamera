@@ -1561,6 +1561,10 @@ public class CameraActivity extends Activity
         } else {
             mSecureCamera = intent.getBooleanExtra(SECURE_CAMERA_EXTRA, false);
         }
+
+        final boolean useHal3 = getResources().getBoolean(R.bool.config_use_hal3);
+        CameraManagerFactory.getAndroidCameraManager().setHal3(useHal3);
+
         if (mSecureCamera) {
             // Change the window flags so that secure camera can show when locked
             Window win = getWindow();
