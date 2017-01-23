@@ -19,4 +19,6 @@
     <!-- Grid -->
     <color name="grid_line">#33FFFFFF</color>
 
+    <color name="background_color">#00000000</color>
+
 </resources>
