@@ -18,4 +18,9 @@
     <!-- Enable HAL3 by default. -->
     <bool name="config_use_hal3">true</bool>
 
+    <!-- Support for an absolute sharpness value
+         Setting this to true will pass the configured
+         sharpness value to the HAL. -->
+    <bool name="config_use_absolute_sharpness">false</bool>
+
 </resources>
