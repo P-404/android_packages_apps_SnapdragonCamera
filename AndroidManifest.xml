@@ -38,7 +38,7 @@
         android:largeHeap="true"
         android:logo="@mipmap/ic_launcher_camera"
         android:restoreAnyVersion="true"
-        android:supportsRtl="true"
+        android:supportsRtl="false"
         android:requestLegacyExternalStorage="true"
         android:theme="@style/Theme.Camera" >
         <activity
