@@ -151,10 +151,7 @@ public class SettingsActivity extends PreferenceActivity {
                 } else {
                     updateSwitchIDInModePreference(true);
                 }
-                if (value.equals("rtb") && mode == CaptureModule.CameraMode.VIDEO) {
-                    ListPreference eis = (ListPreference) findPreference(SettingsManager.KEY_EIS_VALUE);
-                    eis.setEnabled(false);
-                }
+                updateEISPreference();
             }
             List<String> list = mSettingsManager.getDependentKeys(key);
             if (list != null) {
@@ -174,13 +171,16 @@ public class SettingsActivity extends PreferenceActivity {
                     key.equals(SettingsManager.KEY_CAPTURE_MFNR_VALUE)) {
                 SwitchPreference longShot = (SwitchPreference) findPreference(
                         SettingsManager.KEY_LONGSHOT);
-                if (isPrefEnabled(SettingsManager.KEY_CAPTURE_MFNR_VALUE)) {
-                    longShot.setEnabled(false);
-                }
                 if(isPrefEnabled(SettingsManager.KEY_BURST_LIMIT)){
                     longShot.setEnabled(true);
+                } else {
+                    if (isPrefEnabled(SettingsManager.KEY_CAPTURE_MFNR_VALUE)) {
+                        mSettingsManager.setValue(SettingsManager.KEY_LONGSHOT, "off");
+                        longShot.setEnabled(false);
+                    } else {
+                        longShot.setEnabled(true);
+                    }
                 }
-
             }
         }
     };
@@ -232,7 +232,8 @@ public class SettingsActivity extends PreferenceActivity {
                 }
 
                 if(pref.getKey().equals(SettingsManager.KEY_VIDEO_QUALITY) ||
-                   pref.getKey().equals(SettingsManager.KEY_VIDEO_HIGH_FRAME_RATE)){
+                   pref.getKey().equals(SettingsManager.KEY_VIDEO_HIGH_FRAME_RATE) ||
+                   pref.getKey().equals(SettingsManager.KEY_SELECT_MODE)){
                     updateEISPreference();
                 }
             }
@@ -1028,6 +1029,7 @@ public class SettingsActivity extends PreferenceActivity {
                 add(SettingsManager.KEY_FOVC_VALUE);
                 add(SettingsManager.KEY_VIDEO_HDR_VALUE);
                 add(SettingsManager.KEY_PHYSICAL_CAMCORDER);
+                add(SettingsManager.KEY_VARIABLE_FPS);
                 for (String key: SettingsManager.KEY_PHYSICAL_VIDEO_SIZE)
                     add(key);
             }
@@ -1037,7 +1039,6 @@ public class SettingsActivity extends PreferenceActivity {
                 add(SettingsManager.KEY_SATURATION_LEVEL);
                 add(SettingsManager.KEY_ANTI_BANDING_LEVEL);
                 add(SettingsManager.KEY_STATS_VISUALIZER_VALUE);
-//                add(SettingsManager.KEY_SAVERAW);
                 add(SettingsManager.KEY_AUTO_HDR);
                 add(SettingsManager.KEY_MANUAL_EXPOSURE);
                 add(SettingsManager.KEY_SHARPNESS_CONTROL_MODE);
@@ -1110,9 +1111,7 @@ public class SettingsActivity extends PreferenceActivity {
                         videoAddList.add(SettingsManager.KEY_FACIAL_CONTOUR);
                         videoAddList.add(SettingsManager.KEY_MULTI_CAMERA_MODE);
                         videoAddList.add(SettingsManager.KEY_PHYSICAL_CAMERA);
-                        videoAddList.add(SettingsManager.KEY_PHYSICAL_JPEG_CALLBACK);
-                        videoAddList.add(SettingsManager.KEY_SHDR);
-                        videoAddList.add(SettingsManager.KEY_VARIABLE_FPS);
+                        videoAddList.add(SettingsManager.KEY_MFHDR);
                     }
                     videoAddList.add(SettingsManager.KEY_EXTENDED_MAX_ZOOM);
                     videoAddList.add(SettingsManager.KEY_TONE_MAPPING);
@@ -1225,7 +1224,6 @@ public class SettingsActivity extends PreferenceActivity {
         final ArrayList<String> multiCameraVideoList = new ArrayList<String>() {
             {
                 add(SettingsManager.KEY_PHYSICAL_CAMERA);
-                add(SettingsManager.KEY_PHYSICAL_JPEG_CALLBACK);
                 add(SettingsManager.KEY_PHYSICAL_CAMCORDER);
                 for(String id : SettingsManager.KEY_PHYSICAL_VIDEO_SIZE){
                     add(id);
@@ -1308,11 +1306,12 @@ public class SettingsActivity extends PreferenceActivity {
         updatePictureSizePreferenceButton();
         updateVideoHDRPreference();
         updateVideoVariableFpsPreference();
+        updateVideoMFHDRPreference();
         updateFormatPreference();
-        updateEISPreference();
         updateStoragePreference();
         initializePhysicalPreferences();
         updatePhysicalPreferences();
+        updateLongShotPreference();
 
         Map<String, SettingsManager.Values> map = mSettingsManager.getValuesMap();
         if (map == null) return;
@@ -1370,6 +1369,7 @@ public class SettingsActivity extends PreferenceActivity {
         }
         updateZslPreference();
         updateSwitchIDInModePreference(true);
+        updateEISPreference();
     }
 
     private void updateStoragePreference() {
@@ -1418,6 +1418,22 @@ public class SettingsActivity extends PreferenceActivity {
         pref.setEnabled(mSettingsManager.isZZHDRSupported());
     }
 
+    private void updateVideoMFHDRPreference() {
+        ListPreference pref = (ListPreference)findPreference(SettingsManager.KEY_MFHDR);
+        if (pref == null) {
+            return;
+        }
+        int[] modes = mSettingsManager.isMFHDRSupported();
+        pref.setEnabled(false);
+        if (modes != null && modes.length >= 1) {
+            pref.setEnabled(true);
+            mSettingsManager.filterVideoMFHDRModes(modes);
+            updatePreference(SettingsManager.KEY_MFHDR);
+        } else {
+            pref.setEnabled(false);
+        }
+    }
+
     private void updateVideoVariableFpsPreference() {
         ListPreference pref = (ListPreference)findPreference(SettingsManager.KEY_VARIABLE_FPS);
         if (pref == null) {
@@ -1429,15 +1445,12 @@ public class SettingsActivity extends PreferenceActivity {
     private void updatePreferenceButton(String key) {
         Preference pref =  findPreference(key);
         if (pref != null ) {
+            pref.setEnabled(false);
             if( pref instanceof ListPreference) {
                 ListPreference pref2 = (ListPreference) pref;
-                if (pref2.getEntryValues().length == 1) {
-                    pref2.setEnabled(false);
-                } else {
-                    pref2.setEnabled(true);
+                if (pref2.getEntryValues().length > 1) {
+                    updatePreference(key);
                 }
-            }else {
-                pref.setEnabled(false);
             }
         }
     }
@@ -1461,6 +1474,24 @@ public class SettingsActivity extends PreferenceActivity {
                 eisPref.setEnabled(false);
             } else {
                 eisPref.setEnabled(true);
+            }
+            CaptureModule.CameraMode mode = (CaptureModule.CameraMode) getIntent().getSerializableExtra(CAMERA_MODULE);
+            ListPreference selectModePref = (ListPreference) findPreference(SettingsManager.KEY_SELECT_MODE);
+            if (selectModePref.getValue().equals("rtb") && mode == CaptureModule.CameraMode.VIDEO) {
+                eisPref.setEnabled(false);
+            }
+        }
+    }
+
+    private void updateLongShotPreference() {
+        SwitchPreference longShot = (SwitchPreference) findPreference(
+                SettingsManager.KEY_LONGSHOT);
+        if(isPrefEnabled(SettingsManager.KEY_BURST_LIMIT)){
+            longShot.setEnabled(true);
+        } else {
+            if (isPrefEnabled(SettingsManager.KEY_CAPTURE_MFNR_VALUE)) {
+                mSettingsManager.setValue(SettingsManager.KEY_LONGSHOT, "off");
+                longShot.setEnabled(false);
             }
         }
     }

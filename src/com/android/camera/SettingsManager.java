@@ -192,7 +192,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_CAPTURE_MFNR_VALUE = "pref_camera2_capture_mfnr_key";
     public static final String KEY_SENSOR_MODE_FS2_VALUE = "pref_camera2_fs2_key";
     public static final String KEY_ABORT_CAPTURES = "pref_camera2_abort_captures_key";
-    public static final String KEY_SHDR = "pref_camera2_shdr_key";
+    public static final String KEY_MFHDR = "pref_camera2_mfhdr_key";
     public static final String KEY_EXTENDED_MAX_ZOOM = "pref_camera2_extended_max_zoom_key";
     public static final String KEY_SAVERAW = "pref_camera2_saveraw_key";
     public static final String KEY_ZOOM = "pref_camera2_zoom_key";
@@ -357,6 +357,17 @@ public class SettingsManager implements ListMenu.SettingsListener {
         mDependency = parseJson("dependency.json");
     }
 
+    public void reloadCharacteristics(int cameraId){
+        CameraManager manager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
+        try {
+            CameraCharacteristics characteristics
+                    = manager.getCameraCharacteristics(String.valueOf(cameraId));
+            mCharacteristics.set(cameraId, characteristics);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
     public static SettingsManager createInstance(Context context) {
         if (sInstance == null) {
             sInstance = new SettingsManager(context.getApplicationContext());
@@ -446,6 +457,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         final int cameraId = getInitialCameraId();
         setLocalIdAndInitialize(cameraId);
         autoTestBroadcast(cameraId);
+        reloadCharacteristics(cameraId);
     }
 
     public void reinit(int cameraId) {
@@ -584,6 +596,19 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return isFDRenderingInUI;
     }
 
+    public boolean isSwMctfSupported() {
+        boolean supportted = false;
+        try {
+            supportted =
+                    (mCharacteristics.get(mCameraId).get(CaptureModule.swmctf) == 1);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            Log.d(TAG, "swmctf no vendor tag");
+            supportted = true;
+        }
+        Log.i(TAG,"isSwMctfSupported:" + supportted);
+        return supportted;
+    }
+
     public boolean isCameraFDSupported(){
         boolean isCameraFDSupported = false;
         isCameraFDSupported = PersistUtil.isCameraFDSupported();
@@ -608,17 +633,17 @@ public class SettingsManager implements ListMenu.SettingsListener {
     }
 
     public boolean isBurstShotSupported(){
-        boolean isBurstShotSupported = false;
+        boolean isBurstShotSupported = true;
         try {
             isBurstShotSupported = mCharacteristics.get(mCameraId).get(CaptureModule.is_burstshot_supported) == 1 ? true : false;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | NullPointerException e) {
             Log.e(TAG, "isBurstShotSupported no vendor tag");
         }
         return isBurstShotSupported;
     }
 
-    public int getmaxBurstShotFPS(){
-        int maxBurstShotFPS = 0;
+    public float getmaxBurstShotFPS(){
+        float maxBurstShotFPS = 0;
         try {
             maxBurstShotFPS = mCharacteristics.get(mCameraId).get(CaptureModule.max_burstshot_fps);
         } catch (IllegalArgumentException e) {
@@ -891,12 +916,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
         if (getPhysicalCameraId() == null){
             if (!isLogicalEnable() &&
                     !KEY_PHYSICAL_YUV_CALLBACK.equals(key) &&
-                    !KEY_PHYSICAL_RAW_CALLBACK.equals(key) ){
+                    !KEY_PHYSICAL_RAW_CALLBACK.equals(key) &&
+                    !KEY_PHYSICAL_JPEG_CALLBACK.equals(key)){
                 return null;
             }
         }
         if (ids == null || "".equals(ids))
             return null;
+        if (KEY_PHYSICAL_JPEG_CALLBACK.equals(key)){
+            ids = ids.replace("logical;","");
+        }
         String[] physical_ids = ids.trim().split(";");
         if (physical_ids == null || physical_ids.length == 0)
             return null;
@@ -905,8 +934,17 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
     public boolean isLogicalEnable(){
         String ids  = getValue(KEY_PHYSICAL_CAMERA);
-        if (ids == null){
+        if (ids == null || "".equals(ids) || " ".equals(ids)){
             return true;
+        } else {
+            return ids.contains("logical");
+        }
+    }
+
+    public boolean isLogicalFeatureEnable(String key) {
+        String ids  = getValue(key);
+        if (ids == null){
+            return false;
         } else {
             return ids.contains("logical");
         }
@@ -1145,7 +1183,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         ListPreference faceDetectionMode = mPreferenceGroup.findPreference(KEY_FACE_DETECTION_MODE);
         ListPreference fsMode = mPreferenceGroup.findPreference(KEY_SENSOR_MODE_FS2_VALUE);
         ListPreference physicalCamera = mPreferenceGroup.findPreference(KEY_PHYSICAL_CAMERA);
-        ListPreference shdr = mPreferenceGroup.findPreference(KEY_SHDR);
+        ListPreference mfhdr = mPreferenceGroup.findPreference(KEY_MFHDR);
 
         if (forceAUX != null && !mHasMultiCamera) {
             removePreference(mPreferenceGroup, KEY_FORCE_AUX);
@@ -1363,9 +1401,10 @@ public class SettingsManager implements ListMenu.SettingsListener {
             }
         }
 
-        if (shdr != null) {
-            if (!isSHDRModeSupported(cameraId)) {
-                removePreference(mPreferenceGroup, KEY_SHDR);
+        if (mfhdr != null) {
+            int[] modes = isMFHDRSupported();
+            if (!(modes != null && modes.length > 0)) {
+                removePreference(mPreferenceGroup, KEY_MFHDR);
             }
         }
 
@@ -1420,6 +1459,8 @@ public class SettingsManager implements ListMenu.SettingsListener {
                         fullEntryValues.length);
                 physicalCamera.setEntries(newEntries);
                 physicalCamera.setEntryValues(newEntryValues);
+                physicalJpegCallback.setEntries(newEntries);
+                physicalJpegCallback.setEntryValues(newEntryValues);
                 physicalYuvCallback.setEntries(newEntries);
                 physicalYuvCallback.setEntryValues(newEntryValues);
                 physicalRawCallback.setEntries(newEntries);
@@ -1989,6 +2030,18 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return modes != null && modes.length > 1;
     }
 
+    public int[] isMFHDRSupported() {
+        int modes[] = null;
+        try {
+            modes = mCharacteristics.get(getCurrentCameraId())
+                    .get(CaptureModule.support_video_mfhdr_modes);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.support_video_hdr_modes.toString());
+        }
+        return modes;
+    }
+
     public boolean isAutoExposureRegionSupported(int id) {
         Integer maxAERegions = mCharacteristics.get(id).get(
                 CameraCharacteristics.CONTROL_MAX_REGIONS_AE);
@@ -2203,6 +2256,21 @@ public class SettingsManager implements ListMenu.SettingsListener {
             modes.add(""+i);
         }
         return  modes;
+    }
+
+    private List<String> getSupportedVideoMFHDR(int[] modes) {
+        int[] videoDurations = {0, 1, 2};
+        List<String> supportModes = new ArrayList<>();
+        supportModes.add("0");
+        for (int i : videoDurations) {
+            for (int j : modes) {
+                if (i == j) {
+                    supportModes.add(""+i);
+                    Log.v(TAG, " getSupportedVideoMFHDR : " + j);
+                }
+            }
+        }
+        return supportModes;
     }
 
     private List<String> getSupportedVideoSize(int cameraId) {
@@ -2760,6 +2828,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
         videoDuration.reloadInitialEntriesAndEntryValues();
         if (filterUnsupportedOptions(videoDuration, getSupportedVideoDurationFor480())) {
             mFilteredKeys.add(videoDuration.getKey());
+        }
+    }
+
+    public void filterVideoMFHDRModes(int[] modes) {
+        ListPreference videoMFHdr = mPreferenceGroup.findPreference(KEY_MFHDR);
+        videoMFHdr.reloadInitialEntriesAndEntryValues();
+        if (filterUnsupportedOptions(videoMFHdr, getSupportedVideoMFHDR(modes))) {
+            mFilteredKeys.add(videoMFHdr.getKey());
         }
     }
 
