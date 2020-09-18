@@ -248,7 +248,11 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String MAUNAL_ABSOLUTE_ISO_VALUE = "absolute";
     public static final String KEY_SELECT_MODE = "pref_camera2_select_mode_key";
     public static final String KEY_STATSNN_CONTROL = "pref_camera2_statsnn_control_key";
+    public static final String KEY_RAW_CB_INFO = "pref_camera2_raw_cb_info_key";
 
+    public static final String KEY_RAW_REPROCESS_TYPE = "pref_camera2_raw_reprocess_key";
+    public static final String KEY_RAWINFO_TYPE = "pref_camera2_rawinfo_type_key";
+    public static final String KEY_RAW_FORMAT_TYPE = "pref_camera2_raw_format_key";
     private static final String TAG = "SnapCam_SettingsManager";
 
     private static SettingsManager sInstance;
@@ -547,6 +551,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
     public List<String> getSupportList(List<String> supported, String[] supportList) {
         List<String> resultList = new ArrayList<String>();
+        if (supportList == null)return resultList;
         for (String item : supportList) {
             if (supported.indexOf(item) >= 0) {
                 resultList.add(item);
@@ -987,6 +992,22 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return result;
     }
 
+    public void setProModeSliderValueForAutTest(String key, String value) {
+        float valueF = 1.0f;
+        try {
+            valueF = Float.parseFloat(value);
+        } catch(NumberFormatException e) {
+            Log.w(TAG, "setProModeSliderValueForAutTest type incorrect value ");
+        }
+        String prefName = ComboPreferences.getLocalSharedPreferencesName(mContext,
+                getCurrentPrepNameKey());
+        SharedPreferences sharedPreferences = mContext.getSharedPreferences(prefName,
+                Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putFloat(key, valueF);
+        editor.commit();
+    }
+
     public float getFocusSliderValue(String key) {
         String prefName = ComboPreferences.getLocalSharedPreferencesName(mContext,
                 getCurrentPrepNameKey());
@@ -1184,6 +1205,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         ListPreference fsMode = mPreferenceGroup.findPreference(KEY_SENSOR_MODE_FS2_VALUE);
         ListPreference physicalCamera = mPreferenceGroup.findPreference(KEY_PHYSICAL_CAMERA);
         ListPreference mfhdr = mPreferenceGroup.findPreference(KEY_MFHDR);
+        ListPreference extendedMaxZoom = mPreferenceGroup.findPreference(KEY_EXTENDED_MAX_ZOOM);
 
         if (forceAUX != null && !mHasMultiCamera) {
             removePreference(mPreferenceGroup, KEY_FORCE_AUX);
@@ -1403,13 +1425,20 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
         if (mfhdr != null) {
             int[] modes = isMFHDRSupported();
-            if (!(modes != null && modes.length > 0)) {
+            if (!(modes != null && modes.length > 0) || isFacingFront(mCameraId)) {
                 removePreference(mPreferenceGroup, KEY_MFHDR);
             }
         }
 
+        if (extendedMaxZoom != null) {
+            if (CaptureModule.CURRENT_MODE == CaptureModule.CameraMode.HFR) {
+                removePreference(mPreferenceGroup, KEY_EXTENDED_MAX_ZOOM);
+            }
+        }
+
         if (physicalCamera != null) {
-            if (!buildPhysicalCamera(cameraId, physicalCamera)){
+            if (!buildPhysicalCamera(cameraId, physicalCamera) ||
+                    !PersistUtil.isMultiCameraEnabled()){
                 removePreference(mPreferenceGroup, KEY_MULTI_CAMERA_MODE);
                 removePreference(mPreferenceGroup, KEY_PHYSICAL_CAMERA);
                 removePreference(mPreferenceGroup, KEY_PHYSICAL_CAMCORDER);
@@ -2163,6 +2192,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     }
 
     private List<String> getSupportedPictureSize(int cameraId) {
+        if (cameraId > mCharacteristics.size())return null;
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         Size[] sizes = map.getOutputSizes(ImageFormat.JPEG);
@@ -2229,15 +2259,33 @@ public class SettingsManager implements ListMenu.SettingsListener {
     }
 
     public Size[] getSupportedOutputSize(int cameraId, int format) {
+        if (cameraId > mCharacteristics.size())return null;
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         return map.getOutputSizes(format);
     }
 
     public Size[] getSupportedOutputSize(int cameraId, Class cl) {
+        if (cameraId > mCharacteristics.size())return null;
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         return map.getOutputSizes(cl);
+    }
+
+     public Size getMaxPictureSize(int cameraId, Class cl){
+        StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+        Size[] picSize = map.getOutputSizes(cl);
+        Size[] highResSizes = map.getHighResolutionOutputSizes(ImageFormat.JPEG);
+        Size[] allPicSizes = new Size[picSize.length + highResSizes.length];
+        System.arraycopy(picSize, 0, allPicSizes, 0, picSize.length);
+        System.arraycopy(highResSizes, 0, allPicSizes, picSize.length, highResSizes.length);
+        List<Size> allPicSizesList = Arrays.asList(allPicSizes);
+        allPicSizesList.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
+        Size maxPictureSize = allPicSizesList.get(0);
+
+        return maxPictureSize;
     }
 
     private List<String> getSupportedVideoDuration() {
@@ -2273,7 +2321,10 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return supportModes;
     }
 
-    private List<String> getSupportedVideoSize(int cameraId) {
+    public List<String> getSupportedVideoSize(int cameraId) {
+        if (cameraId > mCharacteristics.size())return null;
+        List<String> res = new ArrayList<>();
+        if (cameraId == -1) return res;
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         Size[] outRes = map.getOutputSizes(MediaRecorder.class);
@@ -2294,7 +2345,6 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 }
             }
         }
-        List<String> res = new ArrayList<>();
         for (int i = 0; i < sizes.length; i++) {
             if (isHeifEnabled && heifCap != null ){
                 if (!heifCap.getSupportedWidths().contains(sizes[i].getWidth()) ||
@@ -2305,6 +2355,9 @@ public class SettingsManager implements ListMenu.SettingsListener {
             if (CameraSettings.VIDEO_QUALITY_TABLE.containsKey(sizes[i].toString())) {
                 Integer profile = CameraSettings.VIDEO_QUALITY_TABLE.get(sizes[i].toString());
                 if (profile != null && CamcorderProfile.hasProfile(cameraId, profile)) {
+                    if(getValue(SettingsManager.KEY_MFHDR) != null && getValue(SettingsManager.KEY_MFHDR).equals("2") && sizes[i].toString().equals("3840x2160")){
+                        continue;
+                    }
                     res.add(sizes[i].toString());
                 }
             }
