@@ -38,6 +38,8 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.params.Capability;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.MediaCodecInfo;
@@ -1778,7 +1780,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         }
     }
 
-    private void filterHFROptions() {
+    public void filterHFROptions() {
         ListPreference hfrPref = mPreferenceGroup.findPreference(KEY_VIDEO_HIGH_FRAME_RATE);
         if (hfrPref != null) {
             hfrPref.reloadInitialEntriesAndEntryValues();
@@ -1922,6 +1924,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
     }
 
     private List<String> getSupportedHighFrameRate() {
+        int cameraId = mCameraId;
+        String selectMode = getValue(KEY_SELECT_MODE);
+        if(CaptureModule.CURRENT_MODE == CaptureModule.CameraMode.HFR &&
+                (selectMode != null && selectMode.equals("sat"))){
+            if (CaptureModule.LOGICAL_ID != -1){
+                cameraId = CaptureModule.LOGICAL_ID;
+            }
+        }
         ArrayList<String> supported = new ArrayList<String>();
         supported.add("off");
         ListPreference videoQuality = mPreferenceGroup.findPreference(KEY_VIDEO_QUALITY);
@@ -1931,6 +1941,9 @@ public class SettingsManager implements ListMenu.SettingsListener {
         int videoEncoderNum = SettingTranslation.getVideoEncoder(videoEncoder.getValue());
         VideoCapabilities videoCapabilities = null;
         boolean findVideoEncoder = false;
+        if (mCharacteristics.size() > 0) {
+            mExtendedHFRSize = mCharacteristics.get(cameraId).get(CaptureModule.hfrFpsTable);
+        }
         if (videoSizeStr != null) {
             Size videoSize = parseSize(videoSizeStr);
             boolean above1080p = videoSize.getHeight() * videoSize.getWidth() > 1920*1080;
@@ -1952,7 +1965,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
             }
 
             try {
-                Range[] range = getSupportedHighSpeedVideoFPSRange(mCameraId, videoSize);
+                Range[] range = getSupportedHighSpeedVideoFPSRange(cameraId, videoSize);
                 String rate;
                 for (Range r : range) {
                     // To support HFR for both preview and recording,
@@ -1961,7 +1974,6 @@ public class SettingsManager implements ListMenu.SettingsListener {
                         if (videoCapabilities != null) {
                             if (videoCapabilities.areSizeAndRateSupported(
                                     videoSize.getWidth(), videoSize.getHeight(), (int) r.getUpper())) {
-                                String selectMode = getValue(KEY_SELECT_MODE);
                                 if(CaptureModule.CURRENT_MODE == CaptureModule.CameraMode.HFR && (selectMode != null && selectMode.equals("sat"))){
                                     break;
                                 }
@@ -2482,17 +2494,19 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 .get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
     }
 
-    public int[] getStatsSize(int cameraId) {
-        int[] ret = null;
+    public int[] getStatsInfo(CaptureResult result) {
+        int[] ret = {-1,-1,-1};
         try {
-            ret = new int[2];
-            int width = mCharacteristics.get(cameraId).get(CaptureModule.stats_width);
-            int height = mCharacteristics.get(cameraId).get(CaptureModule.stats_height);
+            int width = result.get(CaptureModule.stats_width);
+            int height = result.get(CaptureModule.stats_height);
             ret[0] = width;
             ret[1] = height;
-        } catch (IllegalArgumentException e){
-            e.printStackTrace();
-            ret = null;
+        } catch (Exception e){
+        }
+        try {
+            int depth = result.get(CaptureModule.stats_bitdepth);
+            ret[2] = depth;
+        }catch (Exception e){
         }
         return ret;
     }
