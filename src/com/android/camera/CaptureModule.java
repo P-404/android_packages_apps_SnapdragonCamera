@@ -2606,7 +2606,11 @@ public class CaptureModule implements CameraModule, PhotoController,
         } catch (CameraAccessException | IOException | IllegalArgumentException |
                 NullPointerException | IllegalStateException e) {
             e.printStackTrace();
-            quitVideoToPhotoWithError(e.getMessage());
+            if (mIsCloseCamera && mCameraDevice[cameraId] == null) {
+                Log.w(TAG, "activity may be onPause, no need to pop up error msg.");
+            } else {
+                quitVideoToPhotoWithError(e.getMessage());
+            }
         }
         mCurrentSessionClosed = false;
     }
@@ -7504,14 +7508,6 @@ public class CaptureModule implements CameraModule, PhotoController,
                                 mVideoRecordRequestBuilder : mVideoPreviewRequestBuilder),
                                 mCaptureCallback, mCameraHandler);
             } else {
-                if (mRecordingPausing) {
-                    if (mUI.getZoomFixedSupport()) {
-                        applyZoomRatio(mVideoPreviewRequestBuilder, mZoomValue, id);
-                    } else {
-                        applyZoom(mVideoPreviewRequestBuilder, id);
-                    }
-                    captureRequest = mVideoPreviewRequestBuilder.build();
-                }
                 mCurrentSession.setRepeatingRequest(captureRequest, mCaptureCallback,
                         mCameraHandler);
             }
