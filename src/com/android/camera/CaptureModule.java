@@ -2752,6 +2752,7 @@ public class CaptureModule implements CameraModule, PhotoController,
         mActivity = activity;
         mRootView = parent;
         mSettingsManager = SettingsManager.getInstance();
+        mSettingsManager.createCaptureModule(this);
         mSettingsManager.registerListener(this);
         mSettingsManager.init();
         mFirstPreviewLoaded = false;
@@ -2780,6 +2781,10 @@ public class CaptureModule implements CameraModule, PhotoController,
 
         mFocusStateListener = new FocusStateListener(mUI);
         mLocationManager = new LocationManager(mActivity, this);
+    }
+
+    public void restoreCameraIds(){
+        CURRENT_ID = mCurrentSceneMode.getCurrentId();
     }
 
     private void initCameraIds() {
@@ -5101,7 +5106,17 @@ public class CaptureModule implements CameraModule, PhotoController,
         mPaused = true;
         mToast = null;
         mUI.onPause();
-        if (mIsRecordingVideo) {
+        if (mLongshoting){
+            if (mCurrentSession != null) {
+                try {
+                    mCurrentSession.abortCaptures();
+                    mCurrentSession.stopRepeating();
+                } catch (CameraAccessException|IllegalStateException e) {
+                    e.printStackTrace();
+                }
+            }
+            mActivity.finish();
+        } else if (mIsRecordingVideo) {
             stopRecordingVideo(getMainCameraId());
         } else if (!mIsCloseCamera){
             if (mIsPreviewingVideo && !mIsRecordingVideo) {
@@ -5695,6 +5710,7 @@ public class CaptureModule implements CameraModule, PhotoController,
         }
         mSettingsManager.unregisterListener(this);
         mSettingsManager.unregisterListener(mUI);
+        mSettingsManager.destroyCaptureModule();
     }
 
     @Override
@@ -6567,7 +6583,7 @@ public class CaptureModule implements CameraModule, PhotoController,
     }
 
     private Size getMaxPictureSizeLiveshot(int cameraId, int videoWidth, int videoHeight) {
-        Size[] sizes = mSettingsManager.getSupportedOutputSize(cameraId, ImageFormat.JPEG);
+        Size[] sizes = mSettingsManager.getAllSupportedOutputSize(cameraId);
 
         float ratio = (float) videoWidth / videoHeight;
         Size optimalSize = null;
@@ -6911,6 +6927,10 @@ public class CaptureModule implements CameraModule, PhotoController,
         public void execute(Runnable runCmd) {
             ihandler.post(runCmd);
         }
+    }
+
+    public boolean isAFLocked(){
+        return mLockAFAE == LOCK_AF_AE_STATE_LOCK_DONE;
     }
 
     private boolean triggerVideoRecording(final int cameraId) {
@@ -8894,9 +8914,13 @@ public class CaptureModule implements CameraModule, PhotoController,
                     ",audioChannels=" + mProfile.audioChannels + ",audioSampleRate="
                     + mProfile.audioSampleRate);
         }
+        int iAudioFormat = AudioFormat.CHANNEL_IN_STEREO;
+        if (mProfile.audioChannels == 1) {
+            iAudioFormat = AudioFormat.CHANNEL_IN_MONO;
+        }
 
         mAudioRecord =  new AudioRecord.Builder()
-                .setAudioFormat((new AudioFormat.Builder().setChannelMask(AudioFormat.CHANNEL_IN_STEREO))
+                .setAudioFormat((new AudioFormat.Builder().setChannelMask(iAudioFormat))
                         .setSampleRate(mProfile.audioSampleRate)
                         .setEncoding(mAudioFormatNumber)
                         .build())
@@ -9372,6 +9396,15 @@ public class CaptureModule implements CameraModule, PhotoController,
         cropRegion.set(xCenter - xDelta, yCenter - yDelta, xCenter + xDelta, yCenter + yDelta);
         if (mZoomValue == 1f) {
             mOriginalCropRegion[id] = cropRegion;
+        } else {
+            if (mOriginalCropRegion[id] == null) {
+                Rect originalRegion = new Rect();
+                int xOrigDelata = (int) (activeRegion.width() / 2);
+                int yOrigDelata = (int) (activeRegion.height() / 2);
+                originalRegion.set(xCenter - xOrigDelata, yCenter - yOrigDelata,
+                        xCenter + xOrigDelata, yCenter + yOrigDelata);
+                mOriginalCropRegion[id] = originalRegion;
+            }
         }
         if (mZoomValue < 1.0f) {
             mCropRegion[id] = mOriginalCropRegion[id];
@@ -10596,6 +10629,10 @@ public class CaptureModule implements CameraModule, PhotoController,
         // inverse of matrix2 will translate from (-1000 to 1000) to camera 2 coordinates
         Matrix matrix2 = new Matrix();
         boolean postZoomFov = mUI.getZoomFixedSupport() && PersistUtil.isCameraPostZoomFOV();
+        if (postZoomFov) {
+            cropRegion = mOriginalCropRegion[id];
+        }
+
         matrix2.preTranslate(-mOriginalCropRegion[id].width() / 2f,
                 -mOriginalCropRegion[id].height() / 2f);
         matrix2.postScale(2000f / mOriginalCropRegion[id].width(),
@@ -10615,14 +10652,17 @@ public class CaptureModule implements CameraModule, PhotoController,
             meteringRegionF.bottom = meteringRegionF.bottom * cropRegion.height()
                     / mOriginalCropRegion[id].height() + cropRegion.top;
         }
-
         Rect meteringRegion = new Rect((int) meteringRegionF.left, (int) meteringRegionF.top,
                 (int) meteringRegionF.right, (int) meteringRegionF.bottom);
         if (DEBUG) {
             Log.v(TAG, " meteringRegion left :" + meteringRegion.left + ", top:" +
                     meteringRegion.top + " right :" + meteringRegion.right +
                     ", bottom :" + meteringRegion.bottom);
+            Log.v(TAG, " cropRegion left :" + cropRegion.left + ", top:" +
+                    cropRegion.top + " right :" + cropRegion.right +
+                    ", bottom :" + cropRegion.bottom);
         }
+
         meteringRegion.left = CameraUtil.clamp(meteringRegion.left, cropRegion.left,
                 cropRegion.right);
         meteringRegion.top = CameraUtil.clamp(meteringRegion.top, cropRegion.top,

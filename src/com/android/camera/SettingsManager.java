@@ -261,6 +261,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     private static final String TAG = "SnapCam_SettingsManager";
 
     private static SettingsManager sInstance;
+    private CaptureModule mCaptureModule;
     private ArrayList<CameraCharacteristics> mCharacteristics;
     private ArrayList<Listener> mListeners;
     private Map<String, Values> mValuesMap;
@@ -386,6 +387,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
     public static SettingsManager getInstance() {
         return sInstance;
+    }
+
+    public void createCaptureModule(CaptureModule captureModule){
+        mCaptureModule = captureModule;
+    }
+
+    public void destroyCaptureModule(){
+        if (mCaptureModule != null) {
+            mCaptureModule = null;
+        }
     }
 
     public void destroyInstance() {
@@ -2339,6 +2350,18 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return map.getOutputSizes(cl);
     }
 
+    public Size[] getAllSupportedOutputSize(int cameraId) {
+        if (cameraId > mCharacteristics.size())return null;
+        StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        Size[] picSize = map.getOutputSizes(ImageFormat.PRIVATE);
+        Size[] highResSizes = map.getHighResolutionOutputSizes(ImageFormat.JPEG);
+        Size[] allPicSizes = new Size[picSize.length + highResSizes.length];
+        System.arraycopy(picSize, 0, allPicSizes, 0, picSize.length);
+        System.arraycopy(highResSizes, 0, allPicSizes, picSize.length, highResSizes.length);
+        return allPicSizes;
+    }
+
      public Size getMaxPictureSize(int cameraId, Class cl){
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -3113,6 +3136,9 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
     public void restoreSettings() {
         clearPerCameraPreferences();
+        mValuesMap.clear();
+        if(mValuesMap != null) mValuesMap = null;
+        mCaptureModule.restoreCameraIds();
         init();
     }
 
