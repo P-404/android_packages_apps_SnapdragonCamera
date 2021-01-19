@@ -2190,11 +2190,35 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return isSupported;
     }
 
+    public boolean isAIDE2Supported() {
+        boolean isSupported = false;
+        try {
+            isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.isAIDE2Supported)) == 1;
+            Log.i(TAG,"isAIDE2Supported: " + isSupported);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.isAIDE2Supported.toString());
+        }
+        return isSupported;
+    }
+
     public boolean isSWMFNRSupport() {
         boolean isSupported = false;
         try {
             //set "CustomNoiseReduction" only if MFNRType is 1 i.e; for Lahaina, set "isSWMFEnabled" only if MFNRType is 2 i.e; for Mannar..
             isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType)) == 2;
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.MFNRType.toString());
+        }
+        return isSupported;
+    }
+
+    public boolean isHWMFNRSupport() {
+        boolean isSupported = false;
+        try {
+            //set "CustomNoiseReduction" only if MFNRType is 1 i.e; for Lahaina, set "isSWMFEnabled" only if MFNRType is 2 i.e; for Mannar..
+            isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType)) == 1;
         } catch (IllegalArgumentException e) {
             Log.w(TAG, "cannot find vendor tag: " +
                     CaptureModule.MFNRType.toString());

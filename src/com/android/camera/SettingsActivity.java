@@ -1615,12 +1615,23 @@ public class SettingsActivity extends PreferenceActivity {
         return false;
     }
 
+    public boolean isHwMfnrDisabled(){
+        String value = mSettingsManager.getValue(SettingsManager.KEY_CAPTURE_MFNR_VALUE);
+        if(value != null &&  !value.equals("disable")&& Integer.parseInt(value) == 0 && mSettingsManager.isHWMFNRSupport()){
+            return true;
+        }
+        return false;
+    }
+
     private void updateAIDEPreference() {
         ListPreference pref = (ListPreference)findPreference(SettingsManager.KEY_AI_DENOISER);
         if (pref == null) {
             return;
         }
-        if(!mSettingsManager.isAIDESupport() || isSwMfnrDisabled()){
+        if(isSwMfnrDisabled() || (mSettingsManager.isSWMFNRSupport() && !isSwMfnrDisabled() && !mSettingsManager.isAIDESupport())){
+            pref.setEnabled(false);
+        }
+        if(isHwMfnrDisabled() || (mSettingsManager.isHWMFNRSupport() && !isHwMfnrDisabled() && !mSettingsManager.isAIDE2Supported())){
             pref.setEnabled(false);
         }
     }
@@ -1632,12 +1643,12 @@ public class SettingsActivity extends PreferenceActivity {
         }
         String mfnrValue = mSettingsManager.getValue(SettingsManager.KEY_CAPTURE_MFNR_VALUE);
         boolean mfnrEnable = false;
-        if(mfnrValue != null && !mfnrValue.equals("disable")&& Integer.parseInt(mfnrValue) == 1 && mSettingsManager.isSWMFNRSupport()){
+        if(mfnrValue != null && !mfnrValue.equals("disable")&& Integer.parseInt(mfnrValue) == 1 && (mSettingsManager.isSWMFNRSupport() || mSettingsManager.isHWMFNRSupport())){
             mfnrEnable = true;
         }
         String aideniserValue = mSettingsManager.getValue(SettingsManager.KEY_AI_DENOISER);
         boolean aideEnable = false;
-        if(aideniserValue != null && !aideniserValue.equals("disable")&& Integer.parseInt(aideniserValue) == 1 && mSettingsManager.isAIDESupport()){
+        if(aideniserValue != null && !aideniserValue.equals("disable")&& Integer.parseInt(aideniserValue) == 1 && (mSettingsManager.isAIDESupport() || mSettingsManager.isAIDE2Supported())){
             aideEnable = true;
         }
         ListPreference ZSLPref = (ListPreference) findPreference(SettingsManager.KEY_ZSL);

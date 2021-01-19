@@ -141,6 +141,7 @@ import com.android.camera.util.VendorTagUtil;
 //import com.android.internal.util.MemInfoReader;
 import com.android.camera.aide.SwmfnrUtil.*;
 import com.android.camera.aide.AideUtil;
+import com.android.camera.aide.AideUtil.*;
 import com.android.camera.aide.SwmfnrUtil;
 
 import org.codeaurora.snapcam.R;
@@ -172,6 +173,7 @@ import java.util.HashSet;
 import java.util.concurrent.TimeoutException;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Map;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -667,6 +669,12 @@ public class CaptureModule implements CameraModule, PhotoController,
           new CaptureRequest.Key<>("com.qti.chi.rawcbinfo.IdealRaw", byte[].class);
     private static final CaptureResult.Key<Integer> metadataOwnerInfo =
             new CaptureResult.Key<>("com.qti.chi.metadataOwnerInfo.MetadataOwner", Integer.class);
+    private static final CaptureResult.Key<Byte> masterCamera =
+            new CaptureResult.Key<>("com.qti.chi.multicamerainfo.MasterCamera", Byte.class);
+    private static final CaptureResult.Key<byte[]> ActiveCameraInfo =
+            new CaptureResult.Key<>("com.qti.chi.multicamerainfo.ActiveCameraInfo", byte[].class);
+    private static final CaptureResult.Key<byte[]> MultiCameraIds =
+            new CaptureResult.Key<>("com.qti.chi.multicamerainfo.MultiCameraIds", byte[].class);
 
     //vendor tag for AIDE
     public static final CaptureRequest.Key<Byte> totalFrameNums =
@@ -682,6 +690,17 @@ public class CaptureModule implements CameraModule, PhotoController,
 
     public static final CaptureResult.Key<byte[]> sWMFandAIDETuningParams =
             new CaptureResult.Key<>("org.quic.camera.SWMFandAIDenoiser.SWMFandAIDETuningParams", byte[].class);
+
+    //vendor tag for AIDE2
+    public static final CameraCharacteristics.Key<Byte> isAIDE2Supported =
+            new CameraCharacteristics.Key<>("org.quic.camera.AIDE2Supported.isAIDE2Supported", byte.class);
+    public static final CaptureRequest.Key<Byte> isHWMFNREnabled =
+            new CaptureRequest.Key<>("org.quic.camera.HWMFNRandAIDenoiser.isHWMFNREnabled", byte.class);
+    public static final CaptureRequest.Key<Byte> isAIDE2Enabled =
+            new CaptureRequest.Key<>("org.quic.camera.HWMFNRandAIDenoiser.isAIDE2Enabled", byte.class);
+    public static final CaptureResult.Key<byte[]> HWMFNRandAIDE2TuningParams =
+            new CaptureResult.Key<>("org.quic.camera.HWMFNRandAIDenoiser.HWMFNRandAIDE2TuningParams", byte[].class);
+
     TotalCaptureResult mCaptureResult;
     boolean enableGyroRefinementParam;
     int imageRegDescParam = 1;
@@ -693,7 +712,10 @@ public class CaptureModule implements CameraModule, PhotoController,
     float sharpnessStrengthParam = 0.7f;
     float spatioTemporalDenoiseBalanceStrengthParam = 0.7f;
     float sharpnessScoreThresholdParam = 0.7f;
-    float denoiseStrengthParam = 0.3f;
+    float denoiseStrengthParam = 0.5f;
+    float color_saturation = 0.0f;
+    float tone = 0.0f;
+    float detail_enhancement = 0.0f;
     private Object mAideLock = new Object();
     private boolean mMnfrCreated = false;
     float mGain;
@@ -872,6 +894,14 @@ public class CaptureModule implements CameraModule, PhotoController,
     private int mYUVCount = 3;
     private Size[] mYUVsize = new Size[mYUVCount];
     private ImageReader[] mYUVImageReader = new ImageReader[3];
+    private String mMasterCameraId;
+    private ArrayList<Integer> mActiveCameraIds = new ArrayList<Integer>();
+    private ImageReader[] mAideFullImageReader = new ImageReader[PHYSICAL_CAMERA_COUNT];
+    private ImageReader[] mAideDs4ImageReader = new ImageReader[PHYSICAL_CAMERA_COUNT];
+    private Image mAideFullImage;
+    private Image mAideDownImage;
+    private Size mSupportedAide2Size;
+
     private int mRawCount = 2;
     private Size[] mRawSize = new Size[mRawCount];
     private ImageReader[] mRAWImageReader = new ImageReader[2];
@@ -1313,6 +1343,20 @@ public class CaptureModule implements CameraModule, PhotoController,
             } else {
                 mUI.updateStatsNNVisibility(View.GONE);
             }
+            if(isAIDE2Enabled()){
+                byte[] multiCameraIds = result.get(MultiCameraIds);
+                if(multiCameraIds != null) {
+                    mMasterCameraId = String.valueOf(byteArray2Int(multiCameraIds, 8));
+                }
+                byte[] ActiveCameraInfos = result.get(ActiveCameraInfo);
+                if(ActiveCameraInfos != null) {
+                    int num = byteArray2Int(ActiveCameraInfos, 0);
+                    for(int y =1;y<=num;y++){
+                        int activeId = byteArray2Int(ActiveCameraInfos, y*4);
+                        mActiveCameraIds.add(activeId);
+                    }
+                }
+            }
         }
     };
 
@@ -1348,6 +1392,20 @@ public class CaptureModule implements CameraModule, PhotoController,
                 sharpnessStrengthParam = byteArray2float(param, 32);
                 sharpnessScoreThresholdParam = byteArray2float(param, 36);
                 denoiseStrengthParam = byteArray2float(param, 40);
+            }
+        } catch (IllegalArgumentException e) {
+            if (DEBUG) Log.d(TAG, "no SWMFandAIDETuningParams");
+        }
+    }
+
+    private void getHWMFandAIDETuningParams(CaptureResult result){
+        try {
+            byte[] param = result.get(HWMFNRandAIDE2TuningParams);
+            if(param != null){
+                denoiseStrengthParam = byteArray2float(param, 0);
+                color_saturation = byteArray2float(param, 4);
+                tone = byteArray2float(param, 8);
+                detail_enhancement = byteArray2float(param, 12);
             }
         } catch (IllegalArgumentException e) {
             if (DEBUG) Log.d(TAG, "no SWMFandAIDETuningParams");
@@ -2319,6 +2377,22 @@ public class CaptureModule implements CameraModule, PhotoController,
         return false;
     }
 
+    public boolean isHwMfnrEnabled(){
+        String value = mSettingsManager.getValue(SettingsManager.KEY_CAPTURE_MFNR_VALUE);
+        if(value != null &&  !value.equals("disable")&& Integer.parseInt(value) == 1 && mSettingsManager.isHWMFNRSupport()){
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isAIDE2Enabled(){
+        String value = mSettingsManager.getValue(SettingsManager.KEY_AI_DENOISER);
+        if(value != null &&  !value.equals("disable")&& Integer.parseInt(value) == 1 && isHwMfnrEnabled() && AideUtil.isAide2Supported()){
+            return true;
+        }
+        return false;
+    }
+
     private void createSession(final int id) {
         Log.d(TAG, "createSession,id: " + id + ",mPaused:" + mPaused + ",mCameraOpened:" + !mCameraOpened[id] + ",mCameraDevice:"+ (mCameraDevice[id] == null));
         if (mPaused || !mCameraOpened[id] || (mCameraDevice[id] == null)) return;
@@ -2516,7 +2590,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                     }
                     mPreviewRequestBuilder[id].addTarget(surface);
 
-                    if (!mSettingsManager.isHeifWriterEncoding() && mRawReprocessType != 1) {
+                    if (!mSettingsManager.isHeifWriterEncoding() && mRawReprocessType != 1 && !isAIDE2Enabled()) {
                         list.add(mImageReader[id].getSurface());
                     }
 
@@ -2528,6 +2602,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                     if (mSaveRaw) {
                         list.add(mRawImageReader[id].getSurface());
                     }
+
                     if(mRawReprocessType != 0){
                         for(int i = 0; i < mRawCount; i++) {
                             list.add(mRAWImageReader[i].getSurface());
@@ -2551,6 +2626,25 @@ public class CaptureModule implements CameraModule, PhotoController,
                             }
                         } else {
                             outputConfigurations.add(new OutputConfiguration(s));
+                        }
+                    }
+                    Set<String> physical_ids = mSettingsManager.getAllPhysicalCameraId();
+                    if(isAIDE2Enabled()) {
+                        if(physical_ids != null && physical_ids.size() != 0){
+                            for (String physicalId : physical_ids){
+                                Log.i(TAG,"configure for physical streams, physicalId:" + physicalId);
+                                OutputConfiguration configuration = new OutputConfiguration(mAideFullImageReader[getIndexByPhysicalId(physicalId)].getSurface());
+                                configuration.setPhysicalCameraId(physicalId);
+                                outputConfigurations.add(configuration);
+                                OutputConfiguration ds4configuration = new OutputConfiguration(mAideDs4ImageReader[getIndexByPhysicalId(physicalId)].getSurface());
+                                ds4configuration.setPhysicalCameraId(physicalId);
+                                outputConfigurations.add(ds4configuration);
+                            }
+                        }else {
+                            OutputConfiguration configuration = new OutputConfiguration(mAideFullImageReader[getMainCameraId()].getSurface());
+                            outputConfigurations.add(configuration);
+                            OutputConfiguration ds4configuration = new OutputConfiguration(mAideDs4ImageReader[getMainCameraId()].getSurface());
+                            outputConfigurations.add(ds4configuration);
                         }
                     }
 
@@ -3676,6 +3770,13 @@ public class CaptureModule implements CameraModule, PhotoController,
                 Log.i(TAG,"can not read swmfnr enable or aide enable tag");
             }
 
+            //apply hwmfnr and aide2 param
+            try {
+                captureBuilder.set(CaptureModule.isHWMFNREnabled, (byte)((isMFNREnabled() && mSettingsManager.isHWMFNRSupport()) ? 0x01 : 0x00));
+                captureBuilder.set(CaptureModule.isAIDE2Enabled, (byte)(isAIDE2Enabled() ? 0x01 : 0x00));
+            } catch (IllegalArgumentException e) {
+                Log.i(TAG,"can not read hwmfnr enable or aide2 enable tag");
+            }
             if (isDeepZoom()) mSupportZoomCapture = true;
             if(isClearSightOn()) {
                 captureStillPictureForClearSight(id);
@@ -3725,12 +3826,33 @@ public class CaptureModule implements CameraModule, PhotoController,
                             }
                         }
                     } else {
-                        if (mRawReprocessType == 0 && mImageReader[id] != null) {
+                        if (mRawReprocessType == 0 && mImageReader[id] != null && !isAIDE2Enabled()) {
                             captureBuilder.addTarget(mImageReader[id].getSurface());
                         }
                         if(mRawReprocessType != 0){
                             Log.i(TAG, "add raw image for capture");
                             captureBuilder.addTarget(mRAWImageReader[0].getSurface());
+                        }
+                        if(isAIDE2Enabled()){
+                            Set<String> physical_ids = mSettingsManager.getAllPhysicalCameraId();
+                            if(physical_ids != null && physical_ids.size() != 0){
+                                captureBuilder.addTarget(mAideFullImageReader[getIndexByPhysicalId(mMasterCameraId)].getSurface());
+                                if(mAECLuxIndex >= 320){//for low light, only HWMFNR, will not add ds image
+                                    captureBuilder.addTarget(mAideDs4ImageReader[getIndexByPhysicalId(mMasterCameraId)].getSurface());
+                                }
+                                if(mActiveCameraIds.size() != 0){
+                                    for (int activeId : mActiveCameraIds) {
+                                        if(activeId != getIndexByPhysicalId(mMasterCameraId)){
+                                            captureBuilder.addTarget(mAideFullImageReader[activeId].getSurface());
+                                        }
+                                    }
+                                }
+                            }else {
+                                captureBuilder.addTarget(mAideFullImageReader[getMainCameraId()].getSurface());
+                                if(mAECLuxIndex >= 320){//for low light, only HWMFNR, will not add ds image
+                                    captureBuilder.addTarget(mAideDs4ImageReader[getMainCameraId()].getSurface());
+                                }
+                            }
                         }
                     }
                 }
@@ -4089,6 +4211,97 @@ public class CaptureModule implements CameraModule, PhotoController,
         }
     };
 
+    CameraCaptureSession.CaptureCallback mAideV2CaptureCallback = new CameraCaptureSession.CaptureCallback() {
+
+        @Override
+        public void onCaptureCompleted(CameraCaptureSession session,
+                                       CaptureRequest request,
+                                       TotalCaptureResult result) {
+            Log.d(TAG, "onCaptureCompleted");
+            getHWMFandAIDETuningParams(result);
+            mCaptureResult = result;
+        }
+
+        @Override
+        public void onCaptureFailed(CameraCaptureSession session,
+                                    CaptureRequest request,
+                                    CaptureFailure result) {
+            Log.d(TAG, "onCaptureFailed");
+        }
+
+        @Override
+        public void onCaptureSequenceCompleted(CameraCaptureSession session, int
+                sequenceId, long frameNumber) {
+            Log.d(TAG, "onCaptureSequenceCompleted");
+            mNamedImages.nameNewImage(System.currentTimeMillis());
+            NamedEntity namedEntity = mNamedImages.getNextNameEntity();
+            String title = (namedEntity == null) ? null : namedEntity.title;
+            int id = getMainCameraId();
+            int orientation = CameraUtil.getJpegRotation(id,mOrientation);
+            int quality = getQualityNumber(mSettingsManager.getValue(SettingsManager.KEY_JPEG_QUALITY));
+            float adrcGain = 100;
+            unlockFocus(id);
+            enableShutterButtonOnMainThread(id);
+            if(mAECLuxIndex < 320){//low light only do HWMFNR and no need to crop
+                mActivity.getAIDenoiserService().wantImagesNum(1);
+                byte[] yuv = getYUVFromImage(mAideFullImage);
+                byte[] jpeg = mActivity.getAIDenoiserService().nv21ToJpeg(yuv, orientation, mCaptureResult, mSupportedAide2Size, quality, mAideFullImage.getPlanes()[0].getRowStride());
+                mActivity.getMediaSaveService().addImage(
+                        jpeg, title, 0L, null,
+                        mSupportedAide2Size.getWidth(),mSupportedAide2Size.getHeight(),
+                        orientation, null, getMediaSavedListener(),
+                        mActivity.getContentResolver(), "jpeg");
+                mActivity.updateThumbnail(jpeg);
+                return;
+            }
+
+            mActivity.getAIDenoiserService().wantImagesNum(2);
+            Rect cropRegion = cropRegionForAideV2Zoom();
+            //getimagedata
+            int[] inputFrameDim = {mAideFullImage.getWidth(), mAideFullImage.getHeight(), mAideFullImage.getPlanes()[0].getRowStride(), mAideFullImage.getPlanes()[2].getRowStride()};
+            int[] downFrameDim = {mAideDownImage.getWidth(), mAideDownImage.getHeight(), mAideDownImage.getPlanes()[0].getRowStride(), mAideDownImage.getPlanes()[2].getRowStride()};
+            ByteBuffer inputY= mAideFullImage.getPlanes()[0].getBuffer();
+            ByteBuffer inputC = mAideFullImage.getPlanes()[2].getBuffer();
+            inputY.rewind();
+            inputC.rewind();
+            ByteBuffer srcInputY = ByteBuffer.allocateDirect(inputY.remaining());
+            srcInputY.put(inputY);
+            ByteBuffer srcInputUV = ByteBuffer.allocateDirect(inputC.remaining());
+            srcInputUV.put(inputC);
+
+            ByteBuffer dsinputY= mAideDownImage.getPlanes()[0].getBuffer();
+            ByteBuffer dsinputC = mAideDownImage.getPlanes()[2].getBuffer();
+            dsinputY.rewind();
+            dsinputC.rewind();
+            ByteBuffer srcDsInputY = ByteBuffer.allocateDirect(dsinputY.remaining());
+            srcDsInputY.put(dsinputY);
+            ByteBuffer srcDsInputUV = ByteBuffer.allocateDirect(dsinputC.remaining());
+            srcDsInputUV.put(dsinputC);
+
+            AIDEV2ProcessFrameArgs aideV2Args = new AIDEV2ProcessFrameArgs(inputFrameDim, downFrameDim, srcInputY, srcInputUV, srcDsInputY, srcDsInputUV,
+                    title, cropRegion, mCaptureResult, mPictureSize, denoiseStrengthParam, adrcGain, (int)(mRGain*1024), (int)(mBGain*1024), (int)(mGGain*1024), orientation, quality);
+
+            mAideFullImage.close();
+            mAideFullImage = null;
+            mAideDownImage.close();
+            mAideDownImage = null;
+            namedEntity = null;
+            //process aidev2
+            synchronized (mAideLock) {
+                mActivity.getAIDenoiserService().startAideV2Process(aideV2Args.getsrcInputY(), aideV2Args.getsrcInputUV(), aideV2Args.getsrcDsInputY(),aideV2Args.getsrcDsInputUV(),
+                        aideV2Args.getInputFrameDim(), aideV2Args.getdownFrameDim(), 100000, 100, aideV2Args.getdenoiseStrengthParam(), aideV2Args.getadrcGain(), aideV2Args.getrGain(), aideV2Args.getbGain(), aideV2Args.getgGain());
+                byte[] srcImage = mActivity.getAIDenoiserService().generateAideV2Image(mActivity, aideV2Args.getorientation(), aideV2Args.getpictureSize(), aideV2Args.getcropRegion(), aideV2Args.getcaptureResult(), aideV2Args.getquality());
+                mActivity.getMediaSaveService().addImage(
+                        srcImage, aideV2Args.gettitle(), 0L, null,
+                        aideV2Args.getpictureSize().getWidth(),
+                        aideV2Args.getpictureSize().getHeight(),
+                        aideV2Args.getorientation(), null, getMediaSavedListener(),
+                        mActivity.getContentResolver(), "jpeg");
+                mActivity.updateThumbnail(srcImage);
+            }
+        }
+    };
+
     public Rect cropRegionForAideZoom() {
         if (DEBUG) {
             Log.d(TAG, "cropRegionForAideZoom ");
@@ -4100,6 +4313,38 @@ public class CaptureModule implements CameraModule, PhotoController,
         int yCenter = activeRegion.height() / 2;
         int xDelta = (int) (activeRegion.width() / (2 * mZoomValue));
         int yDelta = (int) (activeRegion.height() / (2 * mZoomValue));
+        cropRegion.set(xCenter - xDelta, yCenter - yDelta, xCenter + xDelta, yCenter + yDelta);
+        Log.d(TAG, "cropRegionForAideZoom  cropRegion: " +  cropRegion);
+        return cropRegion;
+    }
+
+    public Rect cropRegionForAideV2Zoom() {
+        //output yuv and final picture have the different resolution ratio
+        if (DEBUG) {
+            Log.d(TAG, "cropRegionForAideV2Zoom ");
+        }
+        Rect activeRegion = new Rect(0, 0, mAideFullImage.getWidth(), mAideFullImage.getHeight());
+        Rect pictureRegion = new Rect(0, 0, mPictureSize.getWidth(), mPictureSize.getHeight());
+        Rect cropRegion = new Rect();
+        int xCenter = activeRegion.width() / 2;
+        int yCenter = activeRegion.height() / 2;
+        int xDelta = (int) (activeRegion.width() / 2);
+        int yDelta = (int) (activeRegion.height() / 2);
+
+        cropRegion.set(xCenter - xDelta, yCenter - yDelta, xCenter + xDelta, yCenter + yDelta);
+        if(cropRegion.width() > pictureRegion.width()){
+            xDelta = (int) (pictureRegion.width() / 2);
+            yDelta = (int) (pictureRegion.height() / 2);
+            cropRegion.set(xCenter - xDelta, yCenter - yDelta, xCenter + xDelta, yCenter + yDelta);
+        }
+
+        if(cropRegion.width()/cropRegion.height() > mPictureSize.getWidth()/mPictureSize.getHeight()){
+            int width = mPictureSize.getWidth()/mPictureSize.getHeight()*cropRegion.height();
+            xDelta = (int) (width / 2);
+        } else if (cropRegion.width()/cropRegion.height() < mPictureSize.getWidth()/mPictureSize.getHeight()){
+            int height = cropRegion.width() * mPictureSize.getHeight() /mPictureSize.getWidth();
+            yDelta = (int) (height / 2);
+        }
         cropRegion.set(xCenter - xDelta, yCenter - yDelta, xCenter + xDelta, yCenter + yDelta);
         Log.d(TAG, "cropRegionForAideZoom  cropRegion: " +  cropRegion);
         return cropRegion;
@@ -4137,6 +4382,11 @@ public class CaptureModule implements CameraModule, PhotoController,
                     burstList.add(captureBuilder.build());
                 }
                 mCaptureSession[id].captureBurst(burstList, mAideCaptureCallback, mCaptureCallbackHandler);
+                return;
+            }
+            if(isAIDE2Enabled()) {
+                mActivity.getAIDenoiserService().resetImagesNum();
+                mCaptureSession[id].capture(captureBuilder.build(), mAideV2CaptureCallback, mCaptureCallbackHandler);
                 return;
             }
             mCaptureSession[id].capture(captureBuilder.build(), new CameraCaptureSession.CaptureCallback() {
@@ -4600,6 +4850,58 @@ public class CaptureModule implements CameraModule, PhotoController,
                             mImageReader[i] = ImageReader.newInstance(mPictureSize.getWidth(),mPictureSize.getHeight(),ImageFormat.YUV_420_888,MAX_IMAGEREADERS + 2);
                             mImageReader[i].setOnImageAvailableListener(mActivity.getAIDenoiserService().getImageHandler(), mImageAvailableHandler);
                         }
+                        if(isAIDE2Enabled()){
+                            Set<String> physical_ids = mSettingsManager.getAllPhysicalCameraId();
+                            if(physical_ids != null && physical_ids.size() != 0){
+                                Iterator<String> iterator = physical_ids.iterator();
+                                for (String id : physical_ids){
+                                    final String pyhsicalId = iterator.next();
+                                    Log.i(TAG,"create aide images, id:" + id + ",:mSupportedAide2Size:" + mSupportedAide2Size.toString());
+                                    mAideFullImageReader[getIndexByPhysicalId(id)] = ImageReader.newInstance(mSupportedAide2Size.getWidth(),mSupportedAide2Size.getHeight(),ImageFormat.YUV_420_888,MAX_IMAGEREADERS);
+                                    mAideFullImageReader[getIndexByPhysicalId(id)].setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                                        @Override
+                                        public void onImageAvailable(ImageReader reader) {
+                                            if(mMasterCameraId != null && mMasterCameraId.equals(pyhsicalId)){
+                                                Log.d(TAG,"new aide full image from physical id="+pyhsicalId);
+                                                mAideFullImage = reader.acquireNextImage();
+                                                mActivity.getAIDenoiserService().increment();
+                                            }
+                                        }
+                                    }, mImageAvailableHandler);
+                                    mAideDs4ImageReader[getIndexByPhysicalId(id)] = ImageReader.newInstance(getDsxYUVSize().getWidth(),getDsxYUVSize().getHeight(),ImageFormat.YUV_420_888,MAX_IMAGEREADERS);
+                                    mAideDs4ImageReader[getIndexByPhysicalId(id)].setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                                        @Override
+                                        public void onImageAvailable(ImageReader reader) {
+                                            if(mMasterCameraId != null && mMasterCameraId.equals(pyhsicalId)){
+                                                Log.d(TAG,"new aide ds4 image from physical id="+pyhsicalId);
+                                                mAideDownImage = reader.acquireNextImage();
+                                                mActivity.getAIDenoiserService().increment();
+                                            }
+                                        }
+                                    }, mImageAvailableHandler);
+                                }
+                            }else {
+                                Log.i(TAG,"create aide images for single, id:" + getMainCameraId() + ",:mSupportedAide2Size:" + mSupportedAide2Size.toString());
+                                mAideFullImageReader[getMainCameraId()] = ImageReader.newInstance(mSupportedAide2Size.getWidth(),mSupportedAide2Size.getHeight(),ImageFormat.YUV_420_888,MAX_IMAGEREADERS);
+                                mAideFullImageReader[getMainCameraId()].setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                                    @Override
+                                    public void onImageAvailable(ImageReader reader) {
+                                        Log.d(TAG,"new aide full image ");
+                                        mAideFullImage = reader.acquireNextImage();
+                                        mActivity.getAIDenoiserService().increment();
+                                    }
+                                }, mImageAvailableHandler);
+                                mAideDs4ImageReader[getMainCameraId()] = ImageReader.newInstance(getDsxYUVSize().getWidth(),getDsxYUVSize().getHeight(),ImageFormat.YUV_420_888,MAX_IMAGEREADERS);
+                                mAideDs4ImageReader[getMainCameraId()].setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                                    @Override
+                                    public void onImageAvailable(ImageReader reader) {
+                                        Log.d(TAG,"new aide ds4 image");
+                                        mAideDownImage = reader.acquireNextImage();
+                                        mActivity.getAIDenoiserService().increment();
+                                    }
+                                }, mImageAvailableHandler);
+                            }
+                        }
                         if (mSaveRaw) {
                             mRawImageReader[i] = ImageReader.newInstance(mSupportedRawPictureSize.getWidth(),
                                     mSupportedRawPictureSize.getHeight(), ImageFormat.RAW10, MAX_IMAGEREADERS);
@@ -4614,6 +4916,23 @@ public class CaptureModule implements CameraModule, PhotoController,
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    private Size getDsxYUVSize(){
+        Size dsxYuvSize;
+        float a = mSupportedAide2Size.getWidth()/1008;
+        float b = mSupportedAide2Size.getHeight()/756;
+        float factor = a >b ? a : b;
+        //dsxYuvSize = new Size((int)(mSupportedAide2Size.getWidth()/factor), (int)(mSupportedAide2Size.getHeight()/factor));
+        if(a>b){
+            dsxYuvSize = new Size(1008, 566);
+        }else if (a < b){
+            dsxYuvSize = new Size(756, 756);
+        }else {
+           dsxYuvSize = new Size(1008, 756);
+        }
+        Log.i(TAG,"dsxYuvSize:" + dsxYuvSize.toString());
+        return dsxYuvSize;
     }
 
     private List<OutputConfiguration> getPhysicalPreviewOutput(){
@@ -7022,6 +7341,34 @@ public class CaptureModule implements CameraModule, PhotoController,
         mPreviewSize = getOptimalPreviewSize(mPictureSize, prevSizes);
         Size[] thumbSizes = mSettingsManager.getSupportedThumbnailSizes(getMainCameraId());
         mPictureThumbSize = getOptimalPreviewSize(mPictureSize, thumbSizes); // get largest thumb size
+        getMaxAide2Size();
+    }
+
+    private void getMaxAide2Size(){
+        List<Size> maxSizes = new ArrayList<>();
+        Set<String> allPhysicalIds = mSettingsManager.getAllPhysicalCameraId();
+        if(allPhysicalIds != null && allPhysicalIds.size() != 0){
+            for (String physicalId : allPhysicalIds) {
+                Size[] yuvSizes = mSettingsManager.getSupportedOutputSize(Integer.parseInt(physicalId), ImageFormat.YUV_420_888);
+                List<Size> yuvSizeList = Arrays.asList(yuvSizes);
+                yuvSizeList.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
+                maxSizes.add(yuvSizeList.get(0));
+                Size[] rawSizes = mSettingsManager.getSupportedOutputSize(Integer.parseInt(physicalId),ImageFormat.RAW10);
+                List<Size> rawSizeList = Arrays.asList(rawSizes);
+                rawSizeList.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
+                //maxSizes.add(rawSizeList.get(0));
+                Log.i(TAG,"getMaxAide2Size, physicalId:" + physicalId + ",yuv max:" + yuvSizeList.get(0) +",raw max:" +rawSizeList.get(0) );
+            }
+            maxSizes.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
+            mSupportedAide2Size = maxSizes.get(2);
+        }else {
+            Size[] yuvSizes = mSettingsManager.getSupportedOutputSize(getMainCameraId(), ImageFormat.YUV_420_888);
+            List<Size> yuvSizeList = Arrays.asList(yuvSizes);
+            yuvSizeList.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
+            mSupportedAide2Size = yuvSizeList.get(0);
+            Log.i(TAG,"getMaxAide2Size for single camera id:" + getMainCameraId() + ",yuv max:" + yuvSizeList.get(0));
+        }
+        Log.i(TAG,"getMaxAide2Size, mSupportedAide2Size: " + mSupportedAide2Size.toString());
     }
 
     public Size getThumbSize() {
