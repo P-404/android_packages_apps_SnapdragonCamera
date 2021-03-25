@@ -645,6 +645,15 @@
             android:summary="%s"/>
 
         <ListPreference
+            android:key="pref_camera2_hvx_shdr_key"
+            android:defaultValue="@string/pref_camera2_hvx_shdr_default"
+            android:title="@string/pref_camera2_hvx_shdr_title"
+            android:entries="@array/pref_camera2_hvx_shdr_entries"
+            android:entryValues="@array/pref_camera2_hvx_shdr_entry_values"
+            android:layout="@layout/preference"
+            android:summary="%s"/>
+
+        <ListPreference
             android:defaultValue="@string/pref_camera2_switch_camera_default"
             android:key="pref_camera2_switch_camera_key"
             android:layout="@layout/preference"
@@ -769,6 +778,15 @@
             android:summary="%s"/>
 
         <ListPreference
+            android:key="pref_camera2_gc_shdr_key"
+            android:defaultValue="@string/pref_camera2_gc_shdr_default"
+            android:title="@string/pref_camera2_gc_shdr_title"
+            android:entries="@array/pref_camera2_gc_shdr_entries"
+            android:entryValues="@array/pref_camera2_gc_shdr_entryvalues"
+            android:layout="@layout/preference"
+            android:summary="%s"/>
+
+        <ListPreference
             android:key="pref_camera2_shading_correction_key"
             android:defaultValue="@string/pref_camera2_shading_correction_default"
             android:title="@string/pref_camera2_shading_correction_title"
@@ -783,6 +801,15 @@
             android:title="@string/pref_camera2_extended_max_zoom_title"
             android:entries="@array/pref_camera2_extended_max_zoom_entries"
             android:entryValues="@array/pref_camera2_extended_max_zoom_entryvalues"
+            android:layout="@layout/preference"
+            android:summary="%s"/>
+
+        <ListPreference
+            android:key="pref_camera2_swpdpc_key"
+            android:defaultValue="@string/pref_camera2_swpdpc_default"
+            android:title="@string/pref_camera2_swpdpc_title"
+            android:entries="@array/pref_camera2_swpdpc_entries"
+            android:entryValues="@array/pref_camera2_swpdpc_entryvalues"
             android:layout="@layout/preference"
             android:summary="%s"/>
 

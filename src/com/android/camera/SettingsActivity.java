@@ -156,7 +156,10 @@ public class SettingsActivity extends PreferenceActivity {
                 }
                 updateEISPreference();
                 updateMfnrPreference();
-            } else if (key.equals(SettingsManager.KEY_SAVERAW)) {
+            } else if (key.equals(SettingsManager.KEY_SAVERAW) ||
+                    key.equals(SettingsManager.KEY_AUTO_HDR) ||
+                    key.equals(SettingsManager.KEY_QCFA) ||
+                    key.equals(SettingsManager.KEY_PICTURE_SIZE)) {
                 updateMfnrPreference();
             }
             List<String> list = mSettingsManager.getDependentKeys(key);
@@ -180,17 +183,43 @@ public class SettingsActivity extends PreferenceActivity {
         }
     };
 
+    private Size parsePictureSize(String value) {
+        if(value == null){
+            return null;
+        }
+        int indexX = value.indexOf('x');
+        int width = Integer.parseInt(value.substring(0, indexX));
+        int height = Integer.parseInt(value.substring(indexX + 1));
+        return new Size(width, height);
+    }
+
+    private boolean isMfnrSupported4Size(Size size){
+        if(size != null){
+            if((size.getWidth() * size.getHeight()) > (1920*1080)){
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void updateMfnrPreference(){
         ListPreference mfnrPref = (ListPreference) findPreference(SettingsManager.KEY_CAPTURE_MFNR_VALUE);
         ListPreference selectModePref = (ListPreference)findPreference(SettingsManager.KEY_SELECT_MODE);
         String scene = mSettingsManager.getValue(SettingsManager.KEY_SCENE_MODE);
         String selectMode = mSettingsManager.getValue(SettingsManager.KEY_SELECT_MODE);
         String saveRaw = mSettingsManager.getValue(SettingsManager.KEY_SAVERAW);
+        String autoHdr = mSettingsManager.getValue(SettingsManager.KEY_AUTO_HDR);
+        String qcfa = mSettingsManager.getValue(SettingsManager.KEY_QCFA);
+        Size pictureSize = parsePictureSize(mSettingsManager.getValue(SettingsManager.KEY_PICTURE_SIZE));
 
-        if (mfnrPref != null) {
+        if (mfnrPref != null && mSettingsManager.isSWMFNRSupport()) {
             if((scene != null && Integer.parseInt(scene) == SettingsManager.SCENE_MODE_HDR_INT) ||
-                (mSettingsManager.isSWMFNRSupport() && ((selectModePref != null && selectModePref.isEnabled() && selectMode != null && (selectMode.equals("sat") || selectMode.equals("default"))) ||
-                (saveRaw != null  && saveRaw.equals("enable"))))){
+                    (selectModePref != null && selectModePref.isEnabled() && selectMode != null &&
+                            (selectMode.equals("sat") || selectMode.equals("default"))) ||
+                    (saveRaw != null  && saveRaw.equals("enable")) ||
+                    (autoHdr != null  && autoHdr.equals("enable")) ||
+                    (qcfa != null && qcfa.equals("enable")) ||
+                    !isMfnrSupported4Size(pictureSize)){
                 mfnrPref.setValue("0");
                 mfnrPref.setEnabled(false);
             } else {
@@ -275,7 +304,7 @@ public class SettingsActivity extends PreferenceActivity {
         boolean isInSATOrRTBMode = false;
         CaptureModule.CameraMode mode =
                 (CaptureModule.CameraMode) getIntent().getSerializableExtra(CAMERA_MODULE);
-        if (mode != null && (mode == RTB || mode ==SAT)) {
+        if (mode != null && mode ==SAT) {
             isInSATOrRTBMode = true;
         }
         ListPreference ZSLPref = (ListPreference) findPreference(SettingsManager.KEY_ZSL);
@@ -1059,7 +1088,9 @@ public class SettingsActivity extends PreferenceActivity {
                 add(SettingsManager.KEY_VARIABLE_FPS);
                 add(SettingsManager.KEY_VIDEO_HDR_VALUE);
                 add(SettingsManager.KEY_VIDEO_FLIP);
+                add(SettingsManager.KEY_HVX_SHDR);
                 add(SettingsManager.KEY_PHYSICAL_CAMCORDER);
+                add(SettingsManager.KEY_GC_SHDR);
                 for (String key: SettingsManager.KEY_PHYSICAL_VIDEO_SIZE)
                     add(key);
             }
@@ -1165,6 +1196,7 @@ public class SettingsActivity extends PreferenceActivity {
                         videoAddList.add(SettingsManager.KEY_FD_BLINK);
                         videoAddList.add(SettingsManager.KEY_FACE_DETECTION_MODE);
                         videoAddList.add(SettingsManager.KEY_FACIAL_CONTOUR);
+                        videoAddList.add(SettingsManager.KEY_STATS_VISUALIZER_VALUE);
                         if (PersistUtil.is3ADebugEnabled()) {
                             videoAddList.add(SettingsManager.KEY_MANUAL_EXPOSURE);
                             videoAddList.add(SettingsManager.KEY_MANUAL_WB);
@@ -1172,17 +1204,21 @@ public class SettingsActivity extends PreferenceActivity {
                         videoAddList.add(SettingsManager.KEY_MULTI_CAMERA_MODE);
                         videoAddList.add(SettingsManager.KEY_PHYSICAL_CAMERA);
                         videoAddList.add(SettingsManager.KEY_MFHDR);
+                        videoAddList.add(SettingsManager.KEY_GC_SHDR);
                         if (PersistUtil.enableMediaRecorder()) {
                             videoAddList.remove(SettingsManager.KEY_VIDEO_FLIP);
                         }
                         videoAddList.remove(SettingsManager.KEY_VARIABLE_FPS);
                     } else {
                         videoAddList.remove(SettingsManager.KEY_VIDEO_FLIP);
+                        videoAddList.remove(SettingsManager.KEY_GC_SHDR);
+                        videoAddList.remove(SettingsManager.KEY_HVX_SHDR);
                     }
                     videoAddList.add(SettingsManager.KEY_EXTENDED_MAX_ZOOM);
                     videoAddList.add(SettingsManager.KEY_TONE_MAPPING);
                     videoAddList.add(SettingsManager.KEY_SELECT_MODE);
                     videoAddList.add(SettingsManager.KEY_STATSNN_CONTROL);
+                    videoAddList.add(SettingsManager.KEY_SWPDPC);
                     addDeveloperOptions(developer, videoAddList);
                 }
                 removePreference(mode == VIDEO ?
@@ -1197,6 +1233,7 @@ public class SettingsActivity extends PreferenceActivity {
                     if (mSettingsManager.isMultiCameraEnabled()){
                         RTBList = new ArrayList<>(multiCameraPhotoList);
                         RTBList.add(SettingsManager.KEY_MULTI_CAMERA_MODE);
+                        RTBList.add(SettingsManager.KEY_SWPDPC);
                     } else {
                         RTBList = new ArrayList<>(multiCameraSettingList);
                         RTBList.add(SettingsManager.KEY_MULTI_CAMERA_MODE);
@@ -1212,6 +1249,7 @@ public class SettingsActivity extends PreferenceActivity {
                     ArrayList<String> SATList = new ArrayList<>(multiCameraSettingList);
                     SATList.add(SettingsManager.KEY_HDR);
                     SATList.add(SettingsManager.KEY_EXTENDED_MAX_ZOOM);
+                    SATList.add(SettingsManager.KEY_SWPDPC);
                     addDeveloperOptions(developer, SATList);
                 }
                 break;
@@ -1377,6 +1415,7 @@ public class SettingsActivity extends PreferenceActivity {
         updatePreference(SettingsManager.KEY_SWITCH_CAMERA);
         updatePreference(SettingsManager.KEY_TONE_MAPPING);
         updatePreference(SettingsManager.KEY_LIVE_PREVIEW);
+        updatePreference(SettingsManager.KEY_HVX_SHDR);
         updateMultiPreference(SettingsManager.KEY_STATS_VISUALIZER_VALUE);
         updatePictureSizePreferenceButton();
         updateVideoHDRPreference();
@@ -1637,6 +1676,8 @@ public class SettingsActivity extends PreferenceActivity {
                 } else {
                     pref.setEnabled(false);
                 }
+            } else {
+                pref.setEnabled(false);
             }
         }
     }

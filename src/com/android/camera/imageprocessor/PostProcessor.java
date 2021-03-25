@@ -389,6 +389,7 @@ public class PostProcessor{
     public void onMetaAvailable(TotalCaptureResult metadata) {
         if(mUseZSL && mZSLQueue != null) {
             mZSLQueue.add(metadata);
+            Log.d(TAG, "add meta of frame number " + metadata.getFrameNumber());
         }
         mLatestResultForLongShot = metadata;
     }
@@ -590,7 +591,7 @@ public class PostProcessor{
                 } catch (IllegalStateException e) {
                     Log.e(TAG, "Queueing more than it can have");
                 }
-                Log.i(TAG, "reprocess capture request");
+                Log.i(TAG, "reprocess capture request, send back frame: " + metadata.getFrameNumber());
                 mCaptureSession.capture(builder.build(), new CameraCaptureSession.CaptureCallback(){
                     @Override
                     public void onCaptureCompleted(CameraCaptureSession session,
@@ -1131,8 +1132,8 @@ public class PostProcessor{
         exif.addDateTimeStampTag(ExifInterface.TAG_DATE_TIME, System.currentTimeMillis(),
                 TimeZone.getDefault());
         if(result != null) {
-            if(result.get(CaptureResult.FLASH_MODE) != null) {
-                exif.addFlashTag(result.get(CaptureResult.FLASH_MODE) != CaptureResult.FLASH_MODE_OFF);
+            if(result.get(CaptureResult.FLASH_STATE) != null) {
+                exif.addFlashTag(result.get(CaptureResult.FLASH_STATE) == CaptureRequest.FLASH_STATE_FIRED);
             }
             if(result.get(CaptureResult.LENS_FOCAL_LENGTH) != null) {
                 exif.addFocalLength(new Rational((int)(result.get(CaptureResult.LENS_FOCAL_LENGTH)*100), 100));

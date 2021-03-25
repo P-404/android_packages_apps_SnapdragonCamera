@@ -196,8 +196,10 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_SENSOR_MODE_FS2_VALUE = "pref_camera2_fs2_key";
     public static final String KEY_ABORT_CAPTURES = "pref_camera2_abort_captures_key";
     public static final String KEY_MFHDR = "pref_camera2_mfhdr_key";
+    public static final String KEY_GC_SHDR = "pref_camera2_gc_shdr_key";
     public static final String KEY_SHADING_CORRECTION = "pref_camera2_shading_correction_key";
     public static final String KEY_EXTENDED_MAX_ZOOM = "pref_camera2_extended_max_zoom_key";
+    public static final String KEY_SWPDPC = "pref_camera2_swpdpc_key";
     public static final String KEY_SAVERAW = "pref_camera2_saveraw_key";
     public static final String KEY_ZOOM = "pref_camera2_zoom_key";
     public static final String KEY_SHARPNESS_CONTROL_MODE = "pref_camera2_sharpness_control_key";
@@ -238,6 +240,8 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_AEC_SENSITIVITY_1 = "pref_camera2_aec_sensitivity_1";
     public static final String KEY_AEC_SENSITIVITY_2 = "pref_camera2_aec_sensitivity_2";
     public static final String KEY_AEC_LUX_INDEX = "pref_camera2_aec_lux_index";
+    public static final String KEY_AEC_ADRC_GAIN = "pref_camera2_aec_adrc_gain";
+    public static final String KEY_AEC_DARK_BOOST_GAIN = "pref_camera2_aec_dark_boost_gain";
     public static final String KEY_STATS_VISUALIZER_VALUE = "pref_camera2_stats_visualizer_key";
 
     public static final HashMap<String, Integer> KEY_ISO_INDEX = new HashMap<String, Integer>();
@@ -254,6 +258,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_SELECT_MODE = "pref_camera2_select_mode_key";
     public static final String KEY_STATSNN_CONTROL = "pref_camera2_statsnn_control_key";
     public static final String KEY_RAW_CB_INFO = "pref_camera2_raw_cb_info_key";
+    public static final String KEY_HVX_SHDR = "pref_camera2_hvx_shdr_key";
     public static final String KEY_QLL = "pref_camera2_qll_key";
     public static final String KEY_AI_DENOISER = "pref_camera2_ai_denoiser_key";
 
@@ -274,7 +279,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     private boolean mIsMonoCameraPresent = false;
     private boolean mIsFrontCameraPresent = false;
     private boolean mHasMultiCamera = false;
-    private boolean mIsHFRSupported = false;
+    private boolean mIsHFRSupported = true;
     private JSONObject mDependency;
     private int mCameraId;
     private int mBackCamId = -1;
@@ -494,16 +499,13 @@ public class SettingsManager implements ListMenu.SettingsListener {
         final SharedPreferences.Editor editor = pref.edit();
         boolean autoWrite = pref.getBoolean(AUTO_TEST_WRITE_CONTENT, true);
         if (autoWrite) {
-            Thread autoTest = new Thread() {
-                public void run() {
-                    writeAutoTextHelpTxt(editor);
-                }
-            };
-            autoTest.start();
+            writeAutoTextHelpTxt();
+            editor.putBoolean(AUTO_TEST_WRITE_CONTENT, false);
+            editor.apply();
         }
     }
 
-    private void writeAutoTextHelpTxt(SharedPreferences.Editor editor) {
+    private void writeAutoTextHelpTxt() {
         List<String> supportLists = new ArrayList<String>();
         /* Video Size */
         String[] videoSizes = getEntryValues(R.array.pref_camera2_video_quality_entryvalues);
@@ -547,10 +549,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
             }
         }
 
-        String filePath = AutoTestUtil.createFile(mContext);
-        boolean result = AutoTestUtil.writeFileContent(filePath, supportLists);
-        editor.putBoolean(AUTO_TEST_WRITE_CONTENT, false);
-        editor.apply();
+        Thread writeThread = new Thread(){
+            @Override
+            public void run() {
+                String filePath = AutoTestUtil.createFile(mContext);
+                AutoTestUtil.writeFileContent(filePath, supportLists);
+            }
+        };
+        writeThread.start();
     }
 
     private List<String> setCharSequenceToListStr(String title, CharSequence[] charSequences) {
@@ -749,7 +755,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
             String newValue = null;
             try {
                 newValue = dependencyList.getString(keyToProcess);
-            } catch (JSONException e) {
+            } catch (JSONException|NullPointerException e) {
                 Log.w(TAG, "initializeValueMap JSONException No value for:" + keyToProcess);
                 continue;
             }
@@ -1226,7 +1232,10 @@ public class SettingsManager implements ListMenu.SettingsListener {
         ListPreference fsMode = mPreferenceGroup.findPreference(KEY_SENSOR_MODE_FS2_VALUE);
         ListPreference physicalCamera = mPreferenceGroup.findPreference(KEY_PHYSICAL_CAMERA);
         ListPreference mfhdr = mPreferenceGroup.findPreference(KEY_MFHDR);
+        ListPreference gcShdr = mPreferenceGroup.findPreference(KEY_GC_SHDR);
         ListPreference extendedMaxZoom = mPreferenceGroup.findPreference(KEY_EXTENDED_MAX_ZOOM);
+        ListPreference hvx_shdr = mPreferenceGroup.findPreference(KEY_HVX_SHDR);
+        ListPreference swpdpc = mPreferenceGroup.findPreference(KEY_SWPDPC);
         ListPreference qll = mPreferenceGroup.findPreference(KEY_QLL);
         ListPreference shadingCorrection = mPreferenceGroup.findPreference(KEY_SHADING_CORRECTION);
 
@@ -1421,6 +1430,34 @@ public class SettingsManager implements ListMenu.SettingsListener {
             }
         }
 
+        if (hvx_shdr != null) {
+            if (!isHvxShdrSupported(cameraId)){
+                mFilteredKeys.add(hvx_shdr.getKey());
+            } else {
+                CharSequence[] entry = hvx_shdr.getEntries();
+                CharSequence[] entryValues = hvx_shdr.getEntryValues();
+                int start = 0;
+                int end = 0;
+                if (!isHvxShdrRawBuffersRequired(cameraId)){
+                    start = 0;
+                    end = 1;
+                } else {
+                    start = 1;
+                    end = 3;
+                }
+                CharSequence[] newEntry = new CharSequence[end - start +1];
+                CharSequence[] newEntryValues = new CharSequence[end - start +1];
+                int index = 0;
+                for (int i = start; i <= end; i++){
+                    newEntry[index] = entry[i];
+                    newEntryValues[index] = entryValues[i];
+                    index ++;
+                }
+                hvx_shdr.setEntries(newEntry);
+                hvx_shdr.setEntryValues(newEntryValues);
+            }
+        }
+
         // filter dynamic lists.
         // These list can be changed run-time
         filterHFROptions();
@@ -1459,9 +1496,21 @@ public class SettingsManager implements ListMenu.SettingsListener {
             }
         }
 
+        if (gcShdr != null) {
+            if(!isGCShdrSupported()) {
+                removePreference(mPreferenceGroup, KEY_GC_SHDR);
+            }
+        }
+
         if (extendedMaxZoom != null) {
             if (CaptureModule.CURRENT_MODE == CaptureModule.CameraMode.HFR) {
                 removePreference(mPreferenceGroup, KEY_EXTENDED_MAX_ZOOM);
+            }
+        }
+
+        if (swpdpc != null) {
+            if (!isSWPDPCSupported()) {
+                removePreference(mPreferenceGroup, KEY_SWPDPC);
             }
         }
 
@@ -1797,11 +1846,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public void filterHFROptions() {
         ListPreference hfrPref = mPreferenceGroup.findPreference(KEY_VIDEO_HIGH_FRAME_RATE);
         if (hfrPref != null) {
-            hfrPref.reloadInitialEntriesAndEntryValues();
-            mIsHFRSupported = !filterUnsupportedOptions(hfrPref,
-                    getSupportedHighFrameRate());
-            if (!mIsHFRSupported) {
-                mFilteredKeys.add(hfrPref.getKey());
+            if (mCaptureModule != null) {
+                CaptureModule.CameraMode mode = mCaptureModule.getCurrenCameraMode();
+                if (mode == CaptureModule.CameraMode.HFR){
+                    hfrPref.reloadInitialEntriesAndEntryValues();
+                    mIsHFRSupported = !filterUnsupportedOptions(hfrPref,
+                            getSupportedHighFrameRate());
+                    if (!mIsHFRSupported) {
+                        mFilteredKeys.add(hfrPref.getKey());
+                    }
+                }
             }
         }
     }
@@ -2085,7 +2139,6 @@ public class SettingsManager implements ListMenu.SettingsListener {
         boolean isSupported = false;
         try {
             //set "CustomNoiseReduction" only if MFNRType is 1 i.e; for Lahaina, set "isSWMFEnabled" only if MFNRType is 2 i.e; for Mannar..
-            Log.i(TAG,"MFNRType:" + mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType));
             isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType)) == 2;
         } catch (IllegalArgumentException e) {
             Log.w(TAG, "cannot find vendor tag: " +
@@ -2096,9 +2149,9 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
     public void updateMfnrPreference(){
         String scene = getValue(KEY_SCENE_MODE);
-        ListPreference mfnrPref = (ListPreference) mPreferenceGroup.findPreference(KEY_CAPTURE_MFNR_VALUE);
-        if (scene != null && Integer.parseInt(scene) == SCENE_MODE_HDR_INT && mfnrPref != null) {
-            mfnrPref.setValue("0");
+        if (scene != null && Integer.parseInt(scene) == SCENE_MODE_HDR_INT && mValuesMap != null && isSWMFNRSupport()) {
+            Values values = new Values("0", null);
+            mValuesMap.put(KEY_CAPTURE_MFNR_VALUE, values);
         }
     }
 
@@ -2162,6 +2215,18 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return modes;
     }
 
+    public boolean isGCShdrSupported() {
+        boolean result = false;
+        try {
+            result = (1 == mCharacteristics.get(getCurrentCameraId()).get(
+                    CaptureModule.support_video_gc_shdr_mode));
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.support_video_gc_shdr_mode.toString());
+        }
+        return result;
+    }
+
     private boolean isQLLSupported() {
         int result = 0;
         try {
@@ -2170,6 +2235,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
         } catch (IllegalArgumentException e) {
             Log.w(TAG, "cannot find vendor tag: " +
                     CaptureModule.support_swcapability_qll.toString());
+        }
+        return (result == 1);
+    }
+
+    private boolean isSWPDPCSupported() {
+        int result = 0;
+        try {
+            result = mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.support_swpdpc);
+            Log.v(TAG, "isSWPDPCSupported result :" + result);
+        } catch (Exception e) {
         }
         return (result == 1);
     }
@@ -2245,6 +2320,34 @@ public class SettingsManager implements ListMenu.SettingsListener {
 //        }
 //        return ret;
         return true;
+    }
+
+    public boolean isHvxShdrSupported(int id) {
+        boolean ret = false;
+        try{
+            if (mCharacteristics.size() >0){
+                byte hvx_shdr_available = mCharacteristics.get(id).get(
+                        CaptureModule.support_hvx_shdr);
+                ret = hvx_shdr_available == 1;
+            }
+        } catch(IllegalArgumentException|NullPointerException e){
+            e.printStackTrace();
+        }
+        return ret;
+    }
+
+    public boolean isHvxShdrRawBuffersRequired(int id){
+        boolean ret = false;
+        try{
+            if (mCharacteristics.size() >0){
+                byte isRawBuffersRequired = mCharacteristics.get(id).get(
+                        CaptureModule.isHvxShdrRawBuffersRequired);
+                ret = isRawBuffersRequired == 1;
+            }
+        } catch(IllegalArgumentException|NullPointerException e){
+            e.printStackTrace();
+        }
+        return ret;
     }
 
     private boolean isFastShutterModeSupported(int id) {
@@ -2382,7 +2485,12 @@ public class SettingsManager implements ListMenu.SettingsListener {
         if (cameraId > mCharacteristics.size())return null;
         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        return map.getOutputSizes(cl);
+        Size[] picSize = map.getOutputSizes(cl);
+        Size[] highResSizes = map.getHighResolutionOutputSizes(ImageFormat.PRIVATE);
+        Size[] allPicSizes = new Size[picSize.length + highResSizes.length];
+        System.arraycopy(picSize, 0, allPicSizes, 0, picSize.length);
+        System.arraycopy(highResSizes, 0, allPicSizes, picSize.length, highResSizes.length);
+        return allPicSizes;
     }
 
     public Size[] getAllSupportedOutputSize(int cameraId) {
@@ -3225,15 +3333,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
 
         }
         HashMap<String,VideoEisConfig> ret = new HashMap<>();
-        if (configs == null || configs.length == 0 || configs.length%6 != 0)
+        if (configs == null || configs.length == 0 || configs.length%8 != 0)
             return null;
-        for (int i=0; i < configs.length; i+=6){
+        for (int i=0; i < configs.length; i+=8){
             VideoEisConfig videoEisConfig = new VideoEisConfig();
             videoEisConfig.setVideoSize(new Size(configs[i],configs[i+1]));
             videoEisConfig.setMaxPreviewFPS(configs[i+2]);
             videoEisConfig.setVideoFPS(configs[i+3]);
             videoEisConfig.setLiveshotSupported(configs[i+4] == 1);
             videoEisConfig.setEISSupported(configs[i+5] == 1);
+            videoEisConfig.setMaxLiveShotSize(new Size(configs[i+6],configs[i+7]));
             String key =VideoEisConfig.getKey(videoEisConfig.getVideoSize(),videoEisConfig.getVideoFPS());
             ret.put(key,videoEisConfig);
         }
@@ -3267,6 +3376,17 @@ public class SettingsManager implements ListMenu.SettingsListener {
             previewFPS = config.getMaxPreviewFPS();
         Log.d(TAG,"videoSize="+videoSize.toString()+" fps="+fps+ " previewFPS="+previewFPS);
         return previewFPS;
+    }
+
+    public Size getMaxLiveShotSize(Size videoSize,int fps){
+        SettingsManager.VideoEisConfig config = getVideoEisConfig(videoSize,fps);
+        if (config != null) {
+            Size liveShotSize = config.getMaxLiveShotSize();
+            Log.d(TAG,"videoSize="+videoSize.toString()+" fps="+fps+ " liveShotSize="+liveShotSize.toString());
+            return liveShotSize;
+        } else {
+            return null;
+        }
     }
 
     public Size parsePictureSize(String value) {
@@ -3313,6 +3433,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         private int mMaxPreviewFPS;
         private boolean mIsLiveshotSupported;
         private boolean mIsEISSupported;
+        private Size mMaxLiveShotSize;
 
         public Size getVideoSize() {
             return mVideoSize;
@@ -3354,6 +3475,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
             this.mIsEISSupported = mIsEISSupported;
         }
 
+        public Size getMaxLiveShotSize() {
+            return mMaxLiveShotSize;
+        }
+
+        public void setMaxLiveShotSize(Size mMaxLiveShotSize) {
+            this.mMaxLiveShotSize = mMaxLiveShotSize;
+        }
+
         public static String getKey(Size size,int FPS){
             return size.toString()+"-"+String.valueOf(FPS);
         }
@@ -3365,6 +3494,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
             builder.append(" VideoFPS="+mVideoFPS);
             builder.append(" LiveshotSupported="+mIsLiveshotSupported);
             builder.append(" EISSupported="+mIsEISSupported);
+            builder.append(" MaxLiveShotSize="+mMaxLiveShotSize.toString());
             return builder.toString();
         }
     }

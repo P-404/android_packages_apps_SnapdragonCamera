@@ -440,6 +440,7 @@
         <item>8192 x 4320</item>
         <item>7680 x 4320</item>
         <item>@string/pref_camera_picturesize_entry_48mp</item>
+        <item>@string/pref_camera_picturesize_entry_36mp</item>
         <item>@string/pref_camera_picturesize_entry_32mp</item>
         <item>@string/pref_camera_picturesize_entry_28mp</item>
         <item>@string/pref_camera_picturesize_entry_25mp</item>
@@ -486,6 +487,7 @@
         <item>8192x4320</item>
         <item>7680x4320</item>
         <item>8000x6000</item>
+        <item>6928x5196</item>
         <item>6560x4928</item>
         <item>6112x4584</item>
         <item>5184x4882</item>
@@ -1406,6 +1408,16 @@ for time lapse recording -->
         <item>@string/pref_camera2_mfhdr_entry_value_mfhdr</item>
     </string-array>
 
+    <string-array name="pref_camera2_gc_shdr_entries" translatable="false">
+        <item>@string/pref_camera2_gc_shdr_entry_on</item>
+        <item>@string/pref_camera2_gc_shdr_entry_off</item>
+    </string-array>
+
+    <string-array name="pref_camera2_gc_shdr_entryvalues" translatable="false">
+        <item>@string/pref_camera2_gc_shdr_entry_value_on</item>
+        <item>@string/pref_camera2_gc_shdr_entry_value_off</item>
+    </string-array>
+
     <string-array name="pref_camera2_shading_correction_entries" translatable="false">
         <item>@string/pref_camera2_shading_correction_entry_enable</item>
         <item>@string/pref_camera2_shading_correction_entry_disable</item>
@@ -1424,6 +1436,30 @@ for time lapse recording -->
     <string-array name="pref_camera2_extended_max_zoom_entryvalues" translatable="false">
         <item>@string/pref_camera2_extended_max_zoom_entry_value_disable</item>
         <item>@string/pref_camera2_extended_max_zoom_entry_value_enable</item>
+    </string-array>
+
+    <string-array name="pref_camera2_hvx_shdr_entries" translatable="false">
+        <item>@string/pref_camera2_hvx_shdr_entry_enable</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_disable</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_preview</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_recording</item>
+    </string-array>
+
+    <string-array name="pref_camera2_hvx_shdr_entry_values" translatable="false">
+        <item>@string/pref_camera2_hvx_shdr_entry_value_enable</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_value_disable</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_value_preview</item>
+        <item>@string/pref_camera2_hvx_shdr_entry_value_recording</item>
+    </string-array>
+
+    <string-array name="pref_camera2_swpdpc_entries" translatable="false">
+        <item>@string/pref_camera2_swpdpc_entry_enable</item>
+        <item>@string/pref_camera2_swpdpc_entry_disable</item>
+    </string-array>
+
+    <string-array name="pref_camera2_swpdpc_entryvalues" translatable="false">
+        <item>@string/pref_camera2_swpdpc_entry_value_enable</item>
+        <item>@string/pref_camera2_swpdpc_entry_value_disable</item>
     </string-array>
 
     <string-array name="pref_camera2_master_cb_entries" translatable="false">

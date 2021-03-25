@@ -33,6 +33,7 @@ import android.util.Log;
 import android.os.SystemClock;
 import com.android.camera.CameraActivity;
 import com.android.camera.CaptureModule;
+import java.nio.ByteBuffer;
 
 public class AideUtil {
     private static final String TAG = "SnapCam_AideUtil";
