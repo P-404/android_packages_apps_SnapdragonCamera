@@ -414,6 +414,8 @@ public class CaptureModule implements CameraModule, PhotoController,
             new CameraCharacteristics.Key<>("org.quic.camera.swcapabilities.isQLLSupported", Integer.class);
     public static CameraCharacteristics.Key<Byte> support_video_gc_shdr_mode =
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.inSensorSHDRMode.inSensorSHDRMode", Byte.class);
+    public static CameraCharacteristics.Key<Byte> support_4k_rtb_video =
+            new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.support4KRTBVideo.support4KRTBVideo", Byte.class);
     public static CameraCharacteristics.Key<Byte> support_hvx_shdr =
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.hvxSHDRMode.hvxSHDRSupported", Byte.class);
     public static CameraCharacteristics.Key<Byte> isHvxShdrRawBuffersRequired =
@@ -5001,8 +5003,9 @@ public class CaptureModule implements CameraModule, PhotoController,
             if (null != mCaptureSession[i]) {
                 if (mCamerasOpened) {
                     try {
-                        mCaptureSession[i].capture(mPreviewRequestBuilder[i].build(), null,
-                                mCameraHandler);
+                        if (!(mCurrentSceneMode.mode == CameraMode.HFR && isHighSpeedRateCapture())) {
+                            mCaptureSession[i].capture(mPreviewRequestBuilder[i].build(), null, mCameraHandler);
+                        }
                     } catch (CameraAccessException e) {
                         e.printStackTrace();
                     } catch (IllegalStateException e) {
@@ -7394,7 +7397,7 @@ public class CaptureModule implements CameraModule, PhotoController,
              public void run() {
                  mUI.showUIafterRecording();
                  mFrameProcessor.setVideoOutputSurface(null);
-                 restartSession(true);
+                 restartSession(false);
              }
         });
     }
