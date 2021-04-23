@@ -422,6 +422,8 @@ public class CaptureModule implements CameraModule, PhotoController,
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.hvxSHDRMode.isRawBuffersRequired", Byte.class);
     public static CameraCharacteristics.Key<Integer> support_swpdpc =
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.SWPDPC.enableSWPDPC", Integer.class);
+    public static CameraCharacteristics.Key<Integer> support_insensor_zoom =
+            new CameraCharacteristics.Key<>("org.quic.camera.swcapabilities.inSensorZoomCapability", Integer.class);
     public static CameraCharacteristics.Key<Byte> logical_camera_type =
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.logicalCameraType.logical_camera_type", Byte.class);
     public static CaptureRequest.Key<Integer> support_video_hdr_values =
@@ -600,6 +602,9 @@ public class CaptureModule implements CameraModule, PhotoController,
             new CaptureRequest.Key<>("org.codeaurora.qcamera3.sessionParameters.enableShadingCorrection", byte.class);
     public static final CaptureRequest.Key<Byte> enable_gc_shdr_mode =
             new CaptureRequest.Key<>("org.codeaurora.qcamera3.sessionParameters.inSensorSHDRMode", byte.class);
+    public static final CaptureRequest.Key<Integer> insensor_zoom_feature =
+            new CaptureRequest.Key<>("org.codeaurora.qcamera3.sessionParameters.EnableInsensorZoom", Integer.class);
+
     public static final CameraCharacteristics.Key<Byte> enable_shading_correction =
             new CameraCharacteristics.Key<>("org.codeaurora.qcamera3.shadingCorrection.enableShadingCorrection", byte.class);
     private static final CaptureResult.Key<Byte> is_depth_focus =
@@ -3279,6 +3284,10 @@ public class CaptureModule implements CameraModule, PhotoController,
         return mLongshotActive;
     }
 
+    public boolean isLongshoting(){
+        return mLongshoting;
+    }
+
     private void parallelLockFocusExposure(int id) {
         if (mActivity == null || mCameraDevice[id] == null
                 || !checkSessionAndBuilder(mCaptureSession[id], mPreviewRequestBuilder[id])) {
@@ -3650,6 +3659,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                     return;
                 }
                 if (mLongshotActive) {
+                    setTotalFrameNumsTag(captureBuilder, 2);
                     captureStillPictureForLongshot(captureBuilder, id);
                 } else {
                     captureStillPictureForCommon(captureBuilder, id);
@@ -3734,6 +3744,9 @@ public class CaptureModule implements CameraModule, PhotoController,
                     updateT2tTrackerView(result);
                     return;
                 }
+                if (mNumFramesArrived.get() >= mShotNum) {
+                    mLongshotActive = false;
+                }
                 Log.d(TAG, "captureStillPictureForLongshot onCaptureCompleted: " + mNumFramesArrived.get() + " " + mShotNum);
 
                 if (mLongshotActive) {
@@ -3787,9 +3800,15 @@ public class CaptureModule implements CameraModule, PhotoController,
                     mLastLongshotTimestamp = timestamp;
                 }
                 Log.d(TAG, "captureStillPictureForLongshot onCaptureStarted: " + mNumFramesArrived.get());
-                if (mNumFramesArrived.get() >= mShotNum) {
-                    mLongshotActive = false;
-                }
+            }
+
+            @Override
+            public void onCaptureBufferLost(CameraCaptureSession session,
+                   CaptureRequest request, Surface target, long frameNumber) {
+                mNumFramesArrived.decrementAndGet();
+                Log.d(TAG, "captureStillPictureForLongShot onCaptureBufferLost: frameNumber is "
+                        + frameNumber);
+
             }
 
             @Override
@@ -3883,6 +3902,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                     captureBuilder.setTag("capture");
                     burstList.add(captureBuilder.build());
                     previewNum -= burstShotFpsNums;
+                    setTotalFrameNumsTag(captureBuilder, 0);
                 } else {
                     mPreviewRequestBuilder[id].setTag("preview");
                     burstList.add(mPreviewRequestBuilder[id].build());
@@ -4064,6 +4084,15 @@ public class CaptureModule implements CameraModule, PhotoController,
                 }
 
                 @Override
+                public void onCaptureBufferLost(CameraCaptureSession session,
+                                                CaptureRequest request, Surface target,
+                                                long frameNumber) {
+                    Log.d(TAG, "captureStillPictureForCommon onCaptureBufferLost: frameNumber is "
+                            + frameNumber);
+                    showToast("Capture failed: buffer lost!");
+                }
+
+                @Override
                 public void onCaptureSequenceCompleted(CameraCaptureSession session, int
                         sequenceId, long frameNumber) {
                     Log.d(TAG, "captureStillPictureForCommon onCaptureSequenceCompleted: " + id);
@@ -4199,6 +4228,15 @@ public class CaptureModule implements CameraModule, PhotoController,
                                                     CaptureRequest request,
                                                     CaptureFailure result) {
                             Log.d(TAG, "captureVideoSnapshot onCaptureFailed: " + id);
+                        }
+
+                        @Override
+                        public void onCaptureBufferLost(CameraCaptureSession session,
+                                                        CaptureRequest request, Surface target,
+                                                        long frameNumber) {
+                            Log.d(TAG, "captureVideoshot onCaptureBufferLost: frameNumber is "
+                                    + frameNumber);
+                            showToast("Capture failed: buffer lost!");
                         }
 
                         @Override
@@ -4422,7 +4460,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                                             exif = Exif.getExif(bytes);
                                             orientation = Exif.getOrientation(exif);
                                         } else {
-                                            orientation = CameraUtil.getJpegRotation(getMainCameraId(),mOrientation);
+                                            orientation = CameraUtil.getJpegRotation(mCamId,mOrientation);
                                         }
 
                                         if (mIntentMode != CaptureModule.INTENT_MODE_NORMAL &&
@@ -5309,6 +5347,7 @@ public class CaptureModule implements CameraModule, PhotoController,
         applySWPDPC(builder);
         applyShadingCorrection(builder);
         applyGcSHDRMode(builder);
+        applyInSensorZoom(builder);
     }
 
     private void applyMctf(CaptureRequest.Builder builder){
@@ -7673,6 +7712,20 @@ public class CaptureModule implements CameraModule, PhotoController,
             } catch (IllegalArgumentException e) {
             }
         }
+        if(SettingsManager.getInstance().isZSLInAppEnabled()){
+            long minFrameDuration = 0;
+            if(mPictureSize.getWidth() * mPictureSize.getHeight() < mSupportedMaxPictureSize.getWidth()*mSupportedMaxPictureSize.getHeight()){
+                minFrameDuration = mSettingsManager.geMinFrameDuration(ImageFormat.PRIVATE, mSupportedMaxPictureSize);
+                Log.i(TAG,"mChosenImageFormat:" + ImageFormat.PRIVATE + ",mSupportedMaxPictureSize:" + mSupportedMaxPictureSize.toString());
+            }else {
+                minFrameDuration = mSettingsManager.geMinFrameDuration(ImageFormat.JPEG, mPictureSize);
+                Log.i(TAG,"mChosenImageFormat:" + ImageFormat.JPEG + ",mPictureSize:" + mPictureSize.toString());
+            }
+            int fps = (int)(1000000000/minFrameDuration);
+            Log.i(TAG, "frameduration:" + minFrameDuration + "fps:" + fps);
+            Range range = new Range(fps, fps);
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, range);
+        }
     }
 
     private void lockAfAeForRequestBuilder(CaptureRequest.Builder builder, int id){
@@ -8109,6 +8162,11 @@ public class CaptureModule implements CameraModule, PhotoController,
                     }
                     captureRequestBuilder = mVideoPreviewRequestBuilder;
                     applyVideoCommentSettings(captureRequestBuilder, getMainCameraId());
+                } else if (!(mCurrentSession instanceof CameraConstrainedHighSpeedCaptureSession)) {
+                    captureRequestBuilder = mVideoPreviewRequestBuilder;
+                    applyVideoCommentSettings(captureRequestBuilder, getMainCameraId());
+                    mCurrentSession.setRepeatingRequest(captureRequestBuilder.build(),
+                            mCaptureCallback, mCameraHandler);
                 }
             }
 
@@ -9875,7 +9933,6 @@ public class CaptureModule implements CameraModule, PhotoController,
     }
 
     private void applyGcSHDRMode(CaptureRequest.Builder request) {
-        Log.v(TAG, " applyGcSHDRMode supported: " + (!mSettingsManager.isGCShdrSupported()));
         if (!mSettingsManager.isGCShdrSupported())
             return;
         try {
@@ -9885,26 +9942,45 @@ public class CaptureModule implements CameraModule, PhotoController,
             if ("0".equals(gcShdrEnable)){
                 value = 0;
             }
-            Log.v(TAG, " applyGcSHDRMode value: " + value);
             request.set(CaptureModule.enable_gc_shdr_mode, value);
         } catch (IllegalArgumentException e) {
             Log.v(TAG, " applyGcSHDRMode no vendorTag: " + enable_gc_shdr_mode);
         }
     }
 
+    private void applyInSensorZoom(CaptureRequest.Builder request) {
+        Log.v(TAG, " applyInSensorZoom supported :" + !mSettingsManager.isInSensorZoomSupported());
+        if (!mSettingsManager.isInSensorZoomSupported())
+            return;
+        try {
+            int value = 0;
+            String inSensorZoom = mSettingsManager.getValue(
+                    SettingsManager.KEY_INSENSOR_ZOOM);
+            Log.v(TAG, " applyInSensorZoom inSensorZoom :" + inSensorZoom);
+            if ("0".equals(inSensorZoom)){
+                request.set(CaptureModule.insensor_zoom_feature, value);
+            } else {
+                value = 1;
+                request.set(CaptureModule.insensor_zoom_feature, value);
+            }
+        } catch (IllegalArgumentException e) {
+            Log.v(TAG, " applyInSensorZoom didn`t exist vendorTag :" + insensor_zoom_feature);
+        }
+    }
+
     private void applyHvxShdr(CaptureRequest.Builder request) {
-        if (!mSettingsManager.isHvxShdrSupported(getMainCameraId())){
+        if (!mSettingsManager.isHvxShdrSupported(getMainCameraId())) {
             return;
         }
-        try{
+        try {
             byte value = 0;
             String hvx_shdr = mSettingsManager.getValue(
                     SettingsManager.KEY_HVX_SHDR);
             if(hvx_shdr != null && Integer.valueOf(hvx_shdr) > 0)
                 value = 1;
-            request.set(CaptureModule.enable_hvx_shdr,value);
-        } catch (IllegalArgumentException e){
-
+            request.set(CaptureModule.enable_hvx_shdr, value);
+        } catch (IllegalArgumentException e) {
+            Log.v(TAG, " applyHvxShdr didn`t exist vendorTag :" + enable_hvx_shdr);
         }
     }
 
@@ -10632,8 +10708,6 @@ public class CaptureModule implements CameraModule, PhotoController,
             try {
                 if (mExistAECWarmTag) {
                     mAECSensitivity = captureResult.get(CaptureModule.aec_sensitivity);
-                    Log.v("daming", " updateAWBCCTAndgains mAECSensitivity[0] :" + mAECSensitivity[0] +
-                            ", mAECSensitivity[1] :" + mAECSensitivity[1] + ", mAECSensitivity[2] :" + mAECSensitivity[2]);
                     mAECLuxIndex = captureResult.get(aec_start_up_luxindex_result);
                 }
 
@@ -12101,12 +12175,14 @@ public class CaptureModule implements CameraModule, PhotoController,
                     mUI.hideZoomSeekBar();
                     return;
                 } else if (zoomRatioRange != null && zoomRatioRange[0] != zoomRatioRange[1]) {
-                    mZoomValue = zoomRatioRange[0];
+                    if (mZoomValue < zoomRatioRange[0]) {
+                        mZoomValue = zoomRatioRange[0];
+                    }
                     mUI.showZoomSeekBar();
                     if (zoomRatioRange[0] > 1){
                         mUI.hideZoomSwitch();
                     }
-                    Log.v(TAG, "updateZoomSeekBarVisible showZoomSeekBar");
+                    Log.v(TAG, "updateZoomSeekBarVisible showZoomSeekBar mZoomValue :" + mZoomValue);
                     return;
                 }
             }

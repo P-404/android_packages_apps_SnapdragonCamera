@@ -67,6 +67,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.android.camera.imageprocessor.filter.BeautificationFilter;
 import com.android.camera.data.Camera2ModeAdapter;
@@ -624,15 +625,20 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
         mZoomSwitch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String[] entries = mActivity.getResources().getStringArray(
-                        R.array.pref_camera2_zomm_switch_entries);
-                String[] values = mActivity.getResources().getStringArray(
-                        R.array.pref_camera2_zomm_switch_entryvalues);
+                String[] entries;
+                String[] values;
                 float[] zoomRatioRange = mSettingsManager.getSupportedRatioZoomRange(
                         mModule.getMainCameraId());
                 if (zoomRatioRange != null && zoomRatioRange[0] <1){
-                    entries[entries.length - 1] = String.valueOf(zoomRatioRange[0])+"x";
-                    values[values.length - 1] = String.valueOf(zoomRatioRange[0]);
+                    entries = mActivity.getResources().getStringArray(
+                            R.array.pref_camera2_zomm_switch_wide_entries);
+                    values = mActivity.getResources().getStringArray(
+                            R.array.pref_camera2_zomm_switch_wide_entryvalues);
+                } else {
+                    entries = mActivity.getResources().getStringArray(
+                            R.array.pref_camera2_zomm_switch_entries);
+                    values = mActivity.getResources().getStringArray(
+                            R.array.pref_camera2_zomm_switch_entryvalues);
                 }
 
                 mZoomIndex = mZoomIncrease? mZoomIndex+1 : mZoomIndex -1;
@@ -804,6 +810,13 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
             mZoomFixedValue = 1.0f;
             mZoomSeekBar.setMax(zoomMax.intValue() * 100 - 100);
             mZoomRatioSupport = false;
+        }
+        if(mZoomFixedValue < 1) {
+            mZoomIndex = 1;
+            mZoomIncrease = true;
+        } else {
+            mZoomIndex = 0;
+            mZoomIncrease = true;
         }
         updateZoomSeekBar(zoomMin);
         mZoomLinearLayout.setVisibility(View.VISIBLE);
@@ -1136,8 +1149,6 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
                 mSurfaceViewMono.setVisibility(View.GONE);
             }
         }
-        mZoomIndex = 0;
-        mZoomIncrease = true;
         mZoomSwitch.setText("1x");
         if(mModule.getCurrenCameraMode() == CaptureModule.CameraMode.RTB ||
                 isRTBModeInSelectMode()) {
@@ -1270,6 +1281,11 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
         if (mPreviewLayout != null && mPreviewLayout.getVisibility() == View.VISIBLE) {
             return;
         }
+        if (mModule.isLongshoting()){
+            Toast.makeText(mActivity,
+                    R.string.msg_not_allow_settings_in_longshot,Toast.LENGTH_SHORT).show();
+            return;
+        }
         clearFocus();
         removeFilterMenu(false);
         Intent intent = new Intent(mActivity, SettingsActivity.class);
@@ -1346,17 +1362,22 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
         String value = mSettingsManager.getValue(SettingsManager.KEY_SCENE_MODE);
         if (value == null) return;
         mSceneModeSwitcher.setVisibility(View.VISIBLE);
-        mSceneModeSwitcher.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                clearFocus();
-                removeFilterMenu(false);
-                Intent intent = new Intent(mActivity, SceneModeActivity.class);
-                intent.putExtra(CameraUtil.KEY_IS_SECURE_CAMERA, mActivity.isSecureCamera());
-                intent.putExtra(SettingsActivity.CAMERA_MODULE, mModule.getCurrenCameraMode());
-                mActivity.startActivity(intent);
-            }
-        });
+        if (mSettingsManager.isMultiCameraEnabled()){
+            mSceneModeSwitcher.setEnabled(false);
+        } else {
+            mSceneModeSwitcher.setEnabled(true);
+            mSceneModeSwitcher.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    clearFocus();
+                    removeFilterMenu(false);
+                    Intent intent = new Intent(mActivity, SceneModeActivity.class);
+                    intent.putExtra(CameraUtil.KEY_IS_SECURE_CAMERA, mActivity.isSecureCamera());
+                    intent.putExtra(SettingsActivity.CAMERA_MODULE, mModule.getCurrenCameraMode());
+                    mActivity.startActivity(intent);
+                }
+            });
+        }
     }
 
     private void initFilterModeButton() {
@@ -1598,6 +1619,11 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
         if (mModule.getCurrentIntentMode() == CaptureModule.INTENT_MODE_NORMAL) {
             mShutterButton.setVisibility(View.VISIBLE);
         }
+    }
+
+    public void setSettingIconEnabled(boolean enabled){
+        if(mSettingsIcon != null)
+            mSettingsIcon.setEnabled(enabled);
     }
 
     public void showUIafterRecording() {
@@ -2008,7 +2034,11 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
             mMakeupButton.setVisibility(View.GONE);
         }
         mFilterModeSwitcher.setEnabled(enableFilterMenu);
-        mSceneModeSwitcher.setEnabled(enableSceneMenu);
+        if (mSettingsManager.isMultiCameraEnabled()){
+            mSceneModeSwitcher.setEnabled(false);
+        } else {
+            mSceneModeSwitcher.setEnabled(enableSceneMenu);
+        }
     }
 
     public void toggleProgressBar(boolean show) {
