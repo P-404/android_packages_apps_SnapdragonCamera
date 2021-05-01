@@ -282,6 +282,10 @@ public class SettingsActivity extends PreferenceActivity {
                     updateVideoHfrFpsPreference();
                 }
 
+                if (pref.getKey().equals(SettingsManager.KEY_HVX_SHDR)) {
+                    updateEISPreference();
+                }
+
                 if (pref.getKey().equals(SettingsManager.KEY_MFHDR) ||
                         pref.getKey().equals(SettingsManager.KEY_SELECT_MODE)) {
                     mSettingsManager.updatePictureAndVideoSize();
@@ -304,7 +308,7 @@ public class SettingsActivity extends PreferenceActivity {
         boolean isInSATOrRTBMode = false;
         CaptureModule.CameraMode mode =
                 (CaptureModule.CameraMode) getIntent().getSerializableExtra(CAMERA_MODULE);
-        if (mode != null && mode ==SAT) {
+        if (mode != null && (mode == SAT || mode == RTB)){
             isInSATOrRTBMode = true;
         }
         ListPreference ZSLPref = (ListPreference) findPreference(SettingsManager.KEY_ZSL);
@@ -1219,6 +1223,7 @@ public class SettingsActivity extends PreferenceActivity {
                     videoAddList.add(SettingsManager.KEY_SELECT_MODE);
                     videoAddList.add(SettingsManager.KEY_STATSNN_CONTROL);
                     videoAddList.add(SettingsManager.KEY_SWPDPC);
+                    videoAddList.add(SettingsManager.KEY_INSENSOR_ZOOM);
                     addDeveloperOptions(developer, videoAddList);
                 }
                 removePreference(mode == VIDEO ?
@@ -1238,7 +1243,7 @@ public class SettingsActivity extends PreferenceActivity {
                         RTBList = new ArrayList<>(multiCameraSettingList);
                         RTBList.add(SettingsManager.KEY_MULTI_CAMERA_MODE);
                         RTBList.add(SettingsManager.KEY_EXTENDED_MAX_ZOOM);
-
+                        RTBList.add(SettingsManager.KEY_INSENSOR_ZOOM);
                     }
                     addDeveloperOptions(developer, RTBList);
                 }
@@ -1721,6 +1726,12 @@ public class SettingsActivity extends PreferenceActivity {
                 if (selectModePref.getValue().equals("rtb") && mode == CaptureModule.CameraMode.VIDEO) {
                     eisPref.setEnabled(false);
                 }
+            }
+            ListPreference hvx_shdr = (ListPreference)findPreference(
+                    SettingsManager.KEY_HVX_SHDR);
+            if(hvx_shdr != null && Integer.valueOf(hvx_shdr.getValue()) > 0) {
+                eisPref.setValue("V3");
+                eisPref.setEnabled(false);
             }
         }
     }

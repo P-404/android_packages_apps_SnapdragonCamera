@@ -261,6 +261,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_HVX_SHDR = "pref_camera2_hvx_shdr_key";
     public static final String KEY_QLL = "pref_camera2_qll_key";
     public static final String KEY_AI_DENOISER = "pref_camera2_ai_denoiser_key";
+    public static final String KEY_INSENSOR_ZOOM = "pref_camera2_insensor_zoom_key";
 
     public static final String KEY_RAW_REPROCESS_TYPE = "pref_camera2_raw_reprocess_key";
     public static final String KEY_RAWINFO_TYPE = "pref_camera2_rawinfo_type_key";
@@ -1238,6 +1239,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         ListPreference swpdpc = mPreferenceGroup.findPreference(KEY_SWPDPC);
         ListPreference qll = mPreferenceGroup.findPreference(KEY_QLL);
         ListPreference shadingCorrection = mPreferenceGroup.findPreference(KEY_SHADING_CORRECTION);
+        ListPreference inSensorZoom = mPreferenceGroup.findPreference(KEY_INSENSOR_ZOOM);
 
         if (forceAUX != null && !mHasMultiCamera) {
             removePreference(mPreferenceGroup, KEY_FORCE_AUX);
@@ -1436,14 +1438,23 @@ public class SettingsManager implements ListMenu.SettingsListener {
             } else {
                 CharSequence[] entry = hvx_shdr.getEntries();
                 CharSequence[] entryValues = hvx_shdr.getEntryValues();
+                boolean enableDefault = false;
+                boolean enablePreview = false;
+                String previousValue = hvx_shdr.getValue();
                 int start = 0;
                 int end = 0;
                 if (!isHvxShdrRawBuffersRequired(cameraId)){
                     start = 0;
                     end = 1;
+                    if ("2".equals(previousValue) || "3".equals(previousValue)){
+                        enableDefault = true;
+                    }
                 } else {
                     start = 1;
                     end = 3;
+                    if ("0".equals(previousValue)){
+                        enablePreview = true;
+                    }
                 }
                 CharSequence[] newEntry = new CharSequence[end - start +1];
                 CharSequence[] newEntryValues = new CharSequence[end - start +1];
@@ -1455,6 +1466,11 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 }
                 hvx_shdr.setEntries(newEntry);
                 hvx_shdr.setEntryValues(newEntryValues);
+                if (enablePreview){
+                    hvx_shdr.setValueIndex(1);
+                } else if (enableDefault){
+                    hvx_shdr.setValueIndex(0);
+                }
             }
         }
 
@@ -1519,6 +1535,12 @@ public class SettingsManager implements ListMenu.SettingsListener {
         if (qll != null) {
             if (!isQLLSupported() || !devLevelAll) {
                 removePreference(mPreferenceGroup, KEY_QLL);
+            }
+        }
+
+        if (inSensorZoom != null) {
+            if (!isInSensorZoomSupported()) {
+                removePreference(mPreferenceGroup, KEY_INSENSOR_ZOOM);
             }
         }
 
@@ -2227,6 +2249,19 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return result;
     }
 
+    public boolean is4kRTBVideoSupported() {
+        boolean result = true;
+        try {
+            result = (1 == mCharacteristics.get(getCurrentCameraId()).get(
+                    CaptureModule.support_4k_rtb_video));
+        } catch (Exception e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.support_4k_rtb_video.toString());
+        }
+        Log.v(TAG, " is4kRTBVideoSupported result = " + result);
+        return result;
+    }
+
     private boolean isQLLSupported() {
         int result = 0;
         try {
@@ -2247,6 +2282,20 @@ public class SettingsManager implements ListMenu.SettingsListener {
         } catch (Exception e) {
         }
         return (result == 1);
+    }
+
+    public boolean isInSensorZoomSupported() {
+        int result = 0;
+        try {
+            result = mCharacteristics.get(getCurrentCameraId()).get(
+                    CaptureModule.support_insensor_zoom);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.support_insensor_zoom.toString());
+        }
+        Log.v(TAG, " isInSensorZoomSupported result :" + result);
+        //return (result == 1);
+        return true;
     }
 
     public boolean isAutoExposureRegionSupported(int id) {
@@ -2602,6 +2651,12 @@ public class SettingsManager implements ListMenu.SettingsListener {
                         //video size should't be larger than 720p when EIS V3 is enabled
                         continue;
                     }
+                    if (!is4kRTBVideoSupported() && getValue(KEY_SELECT_MODE) != null &&
+                            getValue(KEY_SELECT_MODE).equals("rtb") &&
+                            sizes[i].toString().equals("3840x2160")) {
+                        //video size should't supported the 4K size in RTB mode
+                        continue;
+                    }
                     res.add(sizes[i].toString());
                 }
             }
@@ -2661,17 +2716,17 @@ public class SettingsManager implements ListMenu.SettingsListener {
     }
 
     public int[] getStatsInfo(CaptureResult result) {
-        int[] ret = {-1,-1,-1};
+        int[] ret = {-1,-1,-1,-1,-1};
         try {
-            int width = result.get(CaptureModule.stats_width);
-            int height = result.get(CaptureModule.stats_height);
-            ret[0] = width;
-            ret[1] = height;
+            ret[0] = result.get(CaptureModule.bgWidth);
+            ret[1] = result.get(CaptureModule.bgHeight);
+            ret[2] = result.get(CaptureModule.beWidth);
+            ret[3] = result.get(CaptureModule.beHeight);
         } catch (Exception e){
         }
         try {
             int depth = result.get(CaptureModule.stats_bitdepth);
-            ret[2] = depth;
+            ret[4] = depth;
         }catch (Exception e){
         }
         return ret;
@@ -3298,6 +3353,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
         if(mValuesMap != null) mValuesMap = null;
         mCaptureModule.restoreCameraIds();
         init();
+    }
+
+
+    public long geMinFrameDuration(int format, Size size){
+        StreamConfigurationMap map = mCharacteristics.get(getCurrentCameraId()).get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        Long minFrameDuration = map.getOutputMinFrameDuration(format, size);
+        return minFrameDuration;
     }
 
     private void clearPerCameraPreferences() {
