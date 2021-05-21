@@ -168,6 +168,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executor;
 import java.lang.reflect.Method;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.TimeoutException;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -841,6 +842,8 @@ public class CaptureModule implements CameraModule, PhotoController,
     private Handler mImageAvailableHandler;
     private Handler mCaptureCallbackHandler;
     private Handler mMpoSaveHandler;
+    private Handler mZoomHandler;
+    private long mZoomTime;
 
     /**
      * An {@link ImageReader} that handles still image capture.
@@ -1081,6 +1084,33 @@ public class CaptureModule implements CameraModule, PhotoController,
         }
     }
 
+    private class ZoomHandler extends Handler{
+        public static final int MSG_UPDATE_ZOOM = 0;
+        public static final int MSG_UPDATE_ZOOM_INSTANT = 1;
+        ZoomHandler(Looper looper){
+            super(looper);
+        }
+        @Override
+        public void handleMessage(Message msg) {
+            int what = msg.what;
+            int id = CURRENT_ID;
+            switch(what) {
+                case MSG_UPDATE_ZOOM:
+                    applyZoomAndUpdate(id,false);
+                    mUI.updateFaceViewCameraBound(mCropRegion[id]);
+                    mUI.updateT2TCameraBound(mCropRegion[id]);
+                    mUI.updateStatsNNCameraBound(mCropRegion[id]);
+                    break;
+
+                case MSG_UPDATE_ZOOM_INSTANT:
+                    removeMessages(MSG_UPDATE_ZOOM);
+                    applyZoomAndUpdate(id,true);
+                    sendEmptyMessageDelayed(MSG_UPDATE_ZOOM,30);
+                    break;
+            }
+        }
+    }
+
     /**
      * {@link CaptureRequest.Builder} for the camera preview
      */
@@ -1246,7 +1276,7 @@ public class CaptureModule implements CameraModule, PhotoController,
             processCaptureResult(result);
             mPostProcessor.onMetaAvailable(result);
             if (statsParametersUpdated <= STATS_PARAMETER_UPDATE) {
-                updateStatsParameters(result);
+                //updateStatsParameters(result);
             }
             String stats_visualizer = mSettingsManager.getValue(
                     SettingsManager.KEY_STATS_VISUALIZER_VALUE);
@@ -1669,8 +1699,10 @@ public class CaptureModule implements CameraModule, PhotoController,
             mCameraOpenCloseLock.release();
             mCamerasOpened = false;
             mIsCloseCamera = true;
-
-            if(mActivity.getAIDenoiserService() != null && mActivity.getAIDenoiserService().getFrameNumbers(mGain) != mActivity.getAIDenoiserService().getImagesNum() && mActivity.getAIDenoiserService().isDoingMfnr()){
+            if(mActivity.getAIDenoiserService() != null &&
+                    mActivity.getAIDenoiserService().getFrameNumbers(mGain) !=
+                            mActivity.getAIDenoiserService().getImagesNum() &&
+                    mActivity.getAIDenoiserService().isDoingMfnr()){
                 warningToast("No enough images for picture.");
                 mActivity.getAIDenoiserService().setDoingMfnr(false);
             }
@@ -4126,7 +4158,9 @@ public class CaptureModule implements CameraModule, PhotoController,
                                                 long frameNumber) {
                     Log.d(TAG, "captureStillPictureForCommon onCaptureBufferLost: frameNumber is "
                             + frameNumber);
-                    showToast("Capture failed: buffer lost!");
+                    if (!mPaused && isOnCaptureBufferLostHintOn()) {
+                        showToast("Capture failed: buffer lost!");
+                    }
                 }
 
                 @Override
@@ -4273,7 +4307,9 @@ public class CaptureModule implements CameraModule, PhotoController,
                                                         long frameNumber) {
                             Log.d(TAG, "captureVideoshot onCaptureBufferLost: frameNumber is "
                                     + frameNumber);
-                            showToast("Capture failed: buffer lost!");
+                            if (!mPaused && isOnCaptureBufferLostHintOn()) {
+                                showToast("Capture failed: buffer lost!");
+                            }
                         }
 
                         @Override
@@ -5446,6 +5482,7 @@ public class CaptureModule implements CameraModule, PhotoController,
         mImageAvailableHandler = new Handler(mImageAvailableThread.getLooper());
         mCaptureCallbackHandler = new Handler(mCaptureCallbackThread.getLooper());
         mMpoSaveHandler = new MpoSaveHandler(mMpoSaveThread.getLooper());
+        mZoomHandler = new ZoomHandler(mCaptureCallbackThread.getLooper());
     }
 
     /**
@@ -5562,8 +5599,8 @@ public class CaptureModule implements CameraModule, PhotoController,
                 updateLockAFAEVisibility();
                 mUI.initFlashButton();
             }
-            writeXMLForWarmAwb();
         }
+        writeXMLForWarmAwb();
         if (mLongshoting && isExitCamera) {
             if (mCurrentSession != null) {
                 try {
@@ -6226,7 +6263,8 @@ public class CaptureModule implements CameraModule, PhotoController,
     public boolean updateZoomChanged(float requestedZoom) {
         Log.i(TAG,"updateZoomChanged,mPaused:" + mPaused + ",mResumed:" +mResumed);
         if (mIsRTBCameraId || isTakingPicture() || !mResumed) return false;
-        if (Math.abs(mZoomValue - requestedZoom) > 0.05) {
+        float diff = Math.abs(mZoomValue - requestedZoom);
+        if ((requestedZoom>=1.0 && diff> 0.05) || (requestedZoom < 1.0 && diff> 0.01)) {
             mZoomValue = requestedZoom;
             applyZoomAndUpdate();
         }
@@ -6708,7 +6746,13 @@ public class CaptureModule implements CameraModule, PhotoController,
             return;
         }
 
-        mSettingsManager.setValue(key, value);
+        if (value.contains(";")) {
+            String[] splitValues = value.split(";");
+            Set<String> set= new HashSet<>(Arrays.asList(splitValues));
+            mSettingsManager.setValue(key, set);
+        } else {
+            mSettingsManager.setValue(key, value);
+        }
         ComboPreferences pref = new ComboPreferences(mActivity);
         pref.setLocalId(mActivity, getMainCameraId());
         Editor editor = pref.edit();
@@ -7069,10 +7113,12 @@ public class CaptureModule implements CameraModule, PhotoController,
     }
 
     private void applyZoomAndUpdate() {
-        applyZoomAndUpdate(getMainCameraId(),false);
-        mUI.updateFaceViewCameraBound(mCropRegion[getMainCameraId()]);
-        mUI.updateT2TCameraBound(mCropRegion[getMainCameraId()]);
-        mUI.updateStatsNNCameraBound(mCropRegion[getMainCameraId()]);
+        long current = System.currentTimeMillis();
+        if(current - mZoomTime > 24){
+            mZoomHandler.sendEmptyMessage(ZoomHandler.MSG_UPDATE_ZOOM_INSTANT);
+            mZoomTime = current;
+        }
+
     }
 
     private void updateZoom() {
@@ -7803,6 +7849,7 @@ public class CaptureModule implements CameraModule, PhotoController,
         applyHistogram(builder);
         applyBGStats(builder);
         applyBEStats(builder);
+        applyAWBCCTAndAgain(builder);
     }
 
     private void applyVideoHDR(CaptureRequest.Builder builder) {
@@ -10415,6 +10462,10 @@ public class CaptureModule implements CameraModule, PhotoController,
                         .build(), mCaptureCallback, mCameraHandler);
             } else {
                 CameraCaptureSession session = mCaptureSession[id];
+                if (instant){
+                    session.stopRepeating();
+                }
+
                 if (session instanceof CameraConstrainedHighSpeedCaptureSession) {
                     List list = ((CameraConstrainedHighSpeedCaptureSession) mCurrentSession)
                             .createHighSpeedRequestList(captureRequest.build());
@@ -12338,6 +12389,11 @@ public class CaptureModule implements CameraModule, PhotoController,
             this.swithCameraId = swithCameraId;
         }
 
+    }
+
+    private boolean isOnCaptureBufferLostHintOn() {
+        String value = mSettingsManager.getValue(SettingsManager.KEY_ONCAPTUREBUFFERLOST_HINT);
+        return value != null && value.equals("on");
     }
 
     private boolean isForceAUXOn(CameraMode mode) {
