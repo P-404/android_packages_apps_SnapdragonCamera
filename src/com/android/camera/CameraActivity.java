@@ -728,7 +728,7 @@ public class CameraActivity extends Activity
         return mDataAdapter;
     }
 
-    private String getPathFromUri(Uri uri) {
+    public String getPathFromUri(Uri uri) {
         String[] projection = {
                 MediaStore.Images.Media.DATA
         };
