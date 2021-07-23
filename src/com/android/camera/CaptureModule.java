@@ -2546,20 +2546,6 @@ public class CaptureModule implements CameraModule, PhotoController,
                                 if (!enableLogical)
                                     out.setPhysicalCameraId(physical_id);
                                 outputConfigurations.add(out);
-                                List<Surface> physicalSurfaces = mUI.getPhysicalSurfaces();
-                                Set<String> allPhysicalIds =
-                                        mSettingsManager.getAllPhysicalCameraId();
-                                int i = 1;
-                                for(String physical : allPhysicalIds) {
-                                    if (!physical_id.equals(physical)){
-                                        OutputConfiguration o = new OutputConfiguration(
-                                                physicalSurfaces.get(i));
-                                        o.setPhysicalCameraId(physical);
-                                        outputConfigurations.add(o);
-                                        mPreviewRequestBuilder[id].addTarget(physicalSurfaces.get(i));
-                                        i++;
-                                    }
-                                }
                             } else {
                                 outputConfigurations.add(out);
                             }
@@ -6170,6 +6156,9 @@ public class CaptureModule implements CameraModule, PhotoController,
         updateZoomSeekBarVisible();
         updateMFNRText();//this must before showRelatedIcons, color filter based on mfnr
         mUI.showRelatedIcons(mCurrentSceneMode.mode);
+        if (mSettingsManager.getSinglePhysicalCamera() != null) {
+            mUI.hideFlashButton();
+        }
         if(mIsCloseCamera) {
             openCamera(getMainCameraId());
         }
