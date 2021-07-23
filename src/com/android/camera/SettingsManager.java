@@ -1626,13 +1626,13 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 physicalYuvCallback.setEntryValues(newEntryValues);
                 physicalRawCallback.setEntries(newEntries);
                 physicalRawCallback.setEntryValues(newEntryValues);
-                CharSequence[] singlePhysicalEntries = new CharSequence[newEntries.length + 1];
-                CharSequence[] singlePhysicalValues = new CharSequence[newEntryValues.length + 1];
+                CharSequence[] singlePhysicalEntries = new CharSequence[newEntries.length];
+                CharSequence[] singlePhysicalValues = new CharSequence[newEntryValues.length];
                 System.arraycopy(newEntries, 0, singlePhysicalEntries, 0, newEntries.length);
                 System.arraycopy(newEntryValues, 0, singlePhysicalValues, 0,
                         newEntryValues.length);
-                singlePhysicalEntries[singlePhysicalEntries.length - 1] = "Logical & all physicals";
-                singlePhysicalValues[singlePhysicalValues.length - 1] = LOGICAL_AND_PHYSICAL;
+                //singlePhysicalEntries[singlePhysicalEntries.length - 1] = "Logical & all physicals";
+                //singlePhysicalValues[singlePhysicalValues.length - 1] = LOGICAL_AND_PHYSICAL;
                 singlePhysicalCamera.setEntries(singlePhysicalEntries);
                 singlePhysicalCamera.setEntryValues(singlePhysicalValues);
                 initPhysicalSizePreference(mCharacteristics.get(cameraId).getPhysicalCameraIds());
