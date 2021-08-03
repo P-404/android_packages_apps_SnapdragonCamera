@@ -1591,6 +1591,22 @@
     <string name="pref_camera2_ai_denoiser_entry_enable" translatable="true">enable</string>
     <string name="pref_camera2_ai_denoiser_entry_value_disable" translatable="false">0</string>
     <string name="pref_camera2_ai_denoiser_entry_value_enable" translatable="false">1</string>
+    <!-- ai denoiser format value-->
+    <string name="pref_camera2_ai_denoiser_format_title" translatable="true">AI Denoiser Format</string>
+    <string name="pref_camera2_ai_denoiser_format_default" translatable="false">1</string>
+    <string name="pref_camera2_ai_denoiser_format_entry_nv12" translatable="true">AIDE_NV12</string>
+    <string name="pref_camera2_ai_denoiser_format_entry_nv21" translatable="true">AIDE_NV21</string>
+    <string name="pref_camera2_ai_denoiser_format_entry_value_nv12" translatable="false">0</string>
+    <string name="pref_camera2_ai_denoiser_format_entry_value_nv21" translatable="false">1</string>
+    <!-- ai denoiser mode value-->
+    <string name="pref_camera2_ai_denoiser_mode_title" translatable="true">AI Denoiser Mode</string>
+    <string name="pref_camera2_ai_denoiser_mode_default" translatable="false">0</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_aide1" translatable="true">AIDE1</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_aide2" translatable="true">AIDE2</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_aide_sat" translatable="true">AIDE2_SAT</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_value_aide1" translatable="false">0</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_value_aide2" translatable="false">1</string>
+    <string name="pref_camera2_ai_denoiser_mode_entry_value_aide_sat" translatable="false">2</string>
 
     <!-- inSensor Zoom value-->
     <string name="pref_camera2_insensor_zoom_title" translatable="true">InSensor Zoom</string>
