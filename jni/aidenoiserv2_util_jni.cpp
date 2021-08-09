@@ -94,6 +94,7 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreateV
     }else if ((uint32_t)mode == 2){
         mode_input = AIDE2_SAT;
     }
+    printf("aide create,mode_input=%d,format_input=%d", mode_input, format_input);
     int createResult = AIDenoiserEngine_Create(&_pInputFrameDim, &_pDsInputFrameDim, &_outputFrameDim, format_input, mode_input, &handle);
     printf("aide create,createResult=%d,handle=%d", createResult, handle);
 
