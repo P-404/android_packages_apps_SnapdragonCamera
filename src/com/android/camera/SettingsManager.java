@@ -124,6 +124,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
 	public static final int SCENE_MODE_DEEPPORTRAIT_INT = SCENE_MODE_CUSTOM_START + 11;
     public static final int JPEG_FORMAT = 0;
     public static final int HEIF_FORMAT = 1;
+    public static final String LOGICAL_AND_PHYSICAL = "99";
     public static final String SCENE_MODE_DUAL_STRING = "100";
     public static final String SCENE_MODE_SUNSET_STRING = "10";
     public static final String SCENE_MODE_LANDSCAPE_STRING = "4";
@@ -145,6 +146,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_REDEYE_REDUCTION = "pref_camera2_redeyereduction_key";
     public static final String KEY_FRONT_REAR_SWITCHER_VALUE = "pref_camera2_switcher_key";
     public static final String KEY_FORCE_AUX = "pref_camera2_force_aux_key";
+    public static final String KEY_ONCAPTUREBUFFERLOST_HINT = "pref_camera2_oncapturebufferlost_key";
     public static final String KEY_SWITCH_CAMERA = "pref_camera2_switch_camera_key";
     public static final String KEY_MULTI_CAMERA_MODE = "pref_camera2_multi_camera_mode_key";
     public static final String KEY_PHYSICAL_CAMERA = "pref_camera2_physical_camera_key";
@@ -243,6 +245,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_AEC_ADRC_GAIN = "pref_camera2_aec_adrc_gain";
     public static final String KEY_AEC_DARK_BOOST_GAIN = "pref_camera2_aec_dark_boost_gain";
     public static final String KEY_STATS_VISUALIZER_VALUE = "pref_camera2_stats_visualizer_key";
+    public static final String KEY_SINGLE_PHYSICAL_CAMERA = "pref_camera2_single_physical_camera_key";
 
     public static final HashMap<String, Integer> KEY_ISO_INDEX = new HashMap<String, Integer>();
     public static final String KEY_FD_SMILE = "pref_camera2_fd_smile_key";
@@ -259,6 +262,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_STATSNN_CONTROL = "pref_camera2_statsnn_control_key";
     public static final String KEY_RAW_CB_INFO = "pref_camera2_raw_cb_info_key";
     public static final String KEY_HVX_SHDR = "pref_camera2_hvx_shdr_key";
+    public static final String KEY_HVX_MFHDR = "pref_camera2_hvx_mfhdr_key";
     public static final String KEY_QLL = "pref_camera2_qll_key";
     public static final String KEY_AI_DENOISER = "pref_camera2_ai_denoiser_key";
     public static final String KEY_INSENSOR_ZOOM = "pref_camera2_insensor_zoom_key";
@@ -266,6 +270,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_RAW_REPROCESS_TYPE = "pref_camera2_raw_reprocess_key";
     public static final String KEY_RAWINFO_TYPE = "pref_camera2_rawinfo_type_key";
     public static final String KEY_RAW_FORMAT_TYPE = "pref_camera2_raw_format_key";
+    public static final String KEY_3A_DEBUG_INFO = "pref_camera2_3A_debug_info_key";
     private static final String TAG = "SnapCam_SettingsManager";
 
     private static SettingsManager sInstance;
@@ -918,6 +923,14 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return "1".equals(enable);
     }
 
+    public String getSinglePhysicalCamera(){
+        String id = getValue(KEY_SINGLE_PHYSICAL_CAMERA);
+        if (!"logical".equals(id) && id != null)
+            return id;
+        else
+            return null;
+    }
+
 
     public Set<String> getPhysicalCameraId() {
         if (!isMultiCameraEnabled())
@@ -1240,6 +1253,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
         ListPreference qll = mPreferenceGroup.findPreference(KEY_QLL);
         ListPreference shadingCorrection = mPreferenceGroup.findPreference(KEY_SHADING_CORRECTION);
         ListPreference inSensorZoom = mPreferenceGroup.findPreference(KEY_INSENSOR_ZOOM);
+        ListPreference hvx_mfhdr = mPreferenceGroup.findPreference(KEY_HVX_MFHDR);
 
         if (forceAUX != null && !mHasMultiCamera) {
             removePreference(mPreferenceGroup, KEY_FORCE_AUX);
@@ -1511,6 +1525,13 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 removePreference(mPreferenceGroup, KEY_MFHDR);
             }
         }
+        if(hvx_mfhdr != null){
+            if (!isHvxMFHDRSupported()) {
+                removePreference(mPreferenceGroup, KEY_HVX_MFHDR);
+            } else {
+                removePreference(mPreferenceGroup, KEY_MFHDR);
+            }
+        }
 
         if (gcShdr != null) {
             if(!isGCShdrSupported()) {
@@ -1555,6 +1576,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 removePreference(mPreferenceGroup, KEY_PHYSICAL_RAW_CALLBACK);
                 removePreference(mPreferenceGroup, KEY_PHYSICAL_HDR);
                 removePreference(mPreferenceGroup, KEY_PHYSICAL_MFNR);
+                removePreference(mPreferenceGroup,KEY_SINGLE_PHYSICAL_CAMERA);
                 for (String key : SettingsManager.KEY_PHYSICAL_SIZE) {
                     removePreference(mPreferenceGroup, key);
                 }
@@ -1577,6 +1599,8 @@ public class SettingsManager implements ListMenu.SettingsListener {
                         KEY_PHYSICAL_HDR);
                 ListPreference physicalMFNR = mPreferenceGroup.findPreference(
                         KEY_PHYSICAL_MFNR);
+                ListPreference singlePhysicalCamera = mPreferenceGroup.findPreference(
+                        KEY_SINGLE_PHYSICAL_CAMERA);
                 preferences.add(physicalCamcorder);
                 preferences.add(physicalJpegCallback);
                 preferences.add(physicalMFNR);
@@ -1602,6 +1626,15 @@ public class SettingsManager implements ListMenu.SettingsListener {
                 physicalYuvCallback.setEntryValues(newEntryValues);
                 physicalRawCallback.setEntries(newEntries);
                 physicalRawCallback.setEntryValues(newEntryValues);
+                CharSequence[] singlePhysicalEntries = new CharSequence[newEntries.length];
+                CharSequence[] singlePhysicalValues = new CharSequence[newEntryValues.length];
+                System.arraycopy(newEntries, 0, singlePhysicalEntries, 0, newEntries.length);
+                System.arraycopy(newEntryValues, 0, singlePhysicalValues, 0,
+                        newEntryValues.length);
+                //singlePhysicalEntries[singlePhysicalEntries.length - 1] = "Logical & all physicals";
+                //singlePhysicalValues[singlePhysicalValues.length - 1] = LOGICAL_AND_PHYSICAL;
+                singlePhysicalCamera.setEntries(singlePhysicalEntries);
+                singlePhysicalCamera.setEntryValues(singlePhysicalValues);
                 initPhysicalSizePreference(mCharacteristics.get(cameraId).getPhysicalCameraIds());
             }
         }
@@ -2369,6 +2402,21 @@ public class SettingsManager implements ListMenu.SettingsListener {
 //        }
 //        return ret;
         return true;
+    }
+
+    public boolean isHvxMFHDRSupported() {
+        boolean result = false;
+        try {
+            if (mCharacteristics.size() >0){
+                // 1 for Kodiak (if enabled) 0 for Lahaina
+                byte isSupported = mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.hvxMFHDRSupported);
+                result = (isSupported == 1);
+            }
+        } catch (IllegalArgumentException|NullPointerException e) {
+            e.printStackTrace();
+            Log.w(TAG, "Supported hvxMFHDRSupported is null.");
+        }
+        return result;
     }
 
     public boolean isHvxShdrSupported(int id) {

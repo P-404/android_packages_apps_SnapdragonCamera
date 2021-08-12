@@ -1290,6 +1290,9 @@
     <string name="pref_camera2_physical_size_title" translatable="true">Picture size of physical</string>
     <string name="pref_camera2_physical_quality_title" translatable="true">Video quality of physical</string>
 
+    <string name="pref_camera2_single_physical_camera_default" translatable="false"></string>
+    <string name="pref_camera2_single_physical_camera_title" translatable="true">Enable single physical camera</string>
+
     <!-- QCFA Title -->
     <string name="pref_camera2_qcfa_title" translatable="true">QCFA</string>
     <string name="pref_camera2_qcfa_default" translatable="false">disable</string>
@@ -1339,7 +1342,7 @@
     <string name="pref_camera2_switcher_entry_value_front" translatable="false">front</string>
 
     <string name="pref_camera2_physical_camera_entries_defualt"  translatable="false">Disable</string>
-    <string name="pref_camera2_physical_camera_entry_value_defualt"  translatable="false">-1</string>
+    <string name="pref_camera2_physical_camera_entry_value_defualt"  translatable="false">logical</string>
 
     <string name="pref_camera2_force_aux_title" translatable="false">Force AUX</string>
     <string name="pref_camera2_force_aux_default" translatable="false">off</string>
@@ -1347,6 +1350,20 @@
     <string name="pref_camera2_force_aux_entry_off" translatable="false">off</string>
     <string name="pref_camera2_force_aux_entry_value_on" translatable="false">on</string>
     <string name="pref_camera2_force_aux_entry_value_off" translatable="false">off</string>
+
+    <string name="pref_camera2_oncapturebufferlost_title" translatable="false">onCaptureBufferLost hint</string>
+    <string name="pref_camera2_oncapturebufferlost_default" translatable="false">off</string>
+    <string name="pref_camera2_oncapturebufferlost_entry_on" translatable="false">on</string>
+    <string name="pref_camera2_oncapturebufferlost_entry_off" translatable="false">off</string>
+    <string name="pref_camera2_oncapturebufferlost_entry_value_on" translatable="false">on</string>
+    <string name="pref_camera2_oncapturebufferlost_entry_value_off" translatable="false">off</string>
+
+    <string name="pref_camera2_stats_visualizer_enable_title" translatable="false">Stats Visualizer Enable</string>
+    <string name="pref_camera2_stats_visualizer_enable_default" translatable="false">0</string>
+    <string name="pref_camera2_stats_visualizer_entry_enable" translatable="false">enable</string>
+    <string name="pref_camera2_stats_visualizer_entry_disable" translatable="false">disable</string>
+    <string name="pref_camera2_stats_visualizer_entry_value_enable" translatable="false">1</string>
+    <string name="pref_camera2_stats_visualizer_entry_value_disable" translatable="false">0</string>
 
     <string name="pref_camera2_stats_visualizer_title" translatable="true">Stats Visualizer</string>
     <string name="pref_camera2_stats_visualizer_default" translatable="false"></string>
@@ -1363,7 +1380,7 @@
     <string name="stats_visualizer_bg_label">BG GraphView</string>
     <string name="stats_visualizer_be_label">BE GraphView</string>
 
-    <string name="pref_camera2_variable_fps_title" translatable="true">VARIABLE FPS</string>
+    <string name="pref_camera2_variable_fps_title" translatable="true">DYNAMIC FPS</string>
     <string name="pref_camera2_variable_fps_default" translatable="false">0</string>
     <string name="pref_camera2_variable_fps_entry_enable" translatable="true">enable</string>
     <string name="pref_camera2_variable_fps_entry_disable" translatable="true">disable</string>
@@ -1438,6 +1455,13 @@
     <string name="pref_camera2_hvx_shdr_entry_value_preview" translatable="false">2</string>
     <string name="pref_camera2_hvx_shdr_entry_value_enable" translatable="false">1</string>
     <string name="pref_camera2_hvx_shdr_entry_value_disable" translatable="false">0</string>
+
+    <string name="pref_camera2_hvx_mfhdr_title" translatable="true">Enable HVX MFHDR</string>
+    <string name="pref_camera2_hvx_mfhdr_default" translatable="true">0</string>
+    <string name="pref_camera2_hvx_mfhdr_entry_enable" translatable="true">enable</string>
+    <string name="pref_camera2_hvx_mfhdr_entry_disable" translatable="true">disable</string>
+    <string name="pref_camera2_hvx_mfhdr_entry_value_enable" translatable="false">1</string>
+    <string name="pref_camera2_hvx_mfhdr_entry_value_disable" translatable="false">0</string>
 
     <string name="pref_camera2_extended_max_zoom_title" translatable="true">Extended max zoom</string>
     <string name="pref_camera2_extended_max_zoom_default" translatable="false">0</string>
@@ -1575,5 +1599,8 @@
     <string name="pref_camera2_insensor_zoom_entry_enable" translatable="true">enable</string>
     <string name="pref_camera2_insensor_zoom_entry_value_disable" translatable="false">0</string>
     <string name="pref_camera2_insensor_zoom_entry_value_enable" translatable="false">1</string>
+
+    <string name="pref_camera2_3A_debug_info_title">3A Debug Info</string>
+    <string name="pref_camera2_3A_debug_info_default" translatable="false">0</string>
 </resources>
 

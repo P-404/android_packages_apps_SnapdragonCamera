@@ -248,6 +248,8 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
     private int mBottomMargin = 0;
     private ViewGroup mFilterLayout;
     private float mZoomFixedValue = 1.0f;
+    private float mZoomBarRatio = 0.2f;
+    private float mZoomMaxValue = 10.0f;
 
     private View mFilterModeSwitcher;
     private View mSceneModeSwitcher;
@@ -320,7 +322,8 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
 
     private void previewUIReady() {
         if((mSurfaceHolder != null && mSurfaceHolder.getSurface().isValid())) {
-            if (mSettingsManager.getPhysicalCameraId() == null){
+            if (mSettingsManager.getPhysicalCameraId() == null &&
+                    mSettingsManager.getSinglePhysicalCamera() == null){
                 mModule.onPreviewUIReady();
             } else {
                 checkSurfaceReady();
@@ -341,11 +344,19 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
     }
 
     private void checkSurfaceReady(){
-        mPreviewCount = mSettingsManager.getPhysicalCameraId().size()+1;
+        String physical_id = mSettingsManager.getSinglePhysicalCamera();
+        if (physical_id != null) {
+            mPreviewCount = mSettingsManager.getAllPhysicalCameraId().size()+1;
+        } else {
+            mPreviewCount = mSettingsManager.getPhysicalCameraId().size()+1;
+        }
         Log.d(TAG,"checkSurfaceReady SurfaceReady="+ Arrays.toString(mSurfaceReady));
         for (int i = 0; i< mPreviewCount; i++){
             if (!mSurfaceReady[i])
                 return;
+        }
+        if(physical_id != null && !mSurfaceHolder.getSurface().isValid()){
+            return;
         }
         mModule.onPreviewUIReady();
     }
@@ -805,9 +816,11 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
             if (zoomRatioRange[0] > zoomMin) {
                 zoomMin = zoomRatioRange[0];
             }
+            mZoomMaxValue = zoomRatioRange[1];
             mZoomRatioSupport = true;
         } else {
             mZoomFixedValue = 1.0f;
+            mZoomMaxValue = zoomMax;
             mZoomSeekBar.setMax(zoomMax.intValue() * 100 - 100);
             mZoomRatioSupport = false;
         }
@@ -824,13 +837,13 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
         mZoomSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float zoomValue = (progress + mZoomFixedValue * 100) / 100f;
+                float zoomValue = getZoomValue(progress,seekBar);
                 mModule.updateZoomChanged(zoomValue);
                 if (mZoomRenderer != null) {
                     mZoomRenderer.setZoom(zoomValue);
                 }
-                int zoomSig = Math.round((progress + mZoomFixedValue * 100)) / 100;
-                int zoomFraction = Math.round(progress + mZoomFixedValue * 100) % 100;
+                int zoomSig = Math.round(zoomValue*100) / 100;
+                int zoomFraction = Math.round(zoomValue*100) % 100;
                 String txt = "";
                 if (zoomFraction < 10) {
                     txt = zoomSig + "." + "0" + zoomFraction + "x";
@@ -848,16 +861,60 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                float zoomValue = (seekBar.getProgress() + mZoomFixedValue * 100) / 100f;
+                float zoomValue = getZoomValue(seekBar.getProgress(),seekBar);
                 mModule.updateZoomChanged(zoomValue);
                 if (mZoomRenderer != null) {
                     mZoomRenderer.setZoom(zoomValue);
                 }
+                int zoomSig = Math.round(zoomValue*100) / 100;
+                int zoomFraction = Math.round(zoomValue*100) % 100;
+                String txt = "";
+                if (zoomFraction < 10) {
+                    txt = zoomSig + "." + "0" + zoomFraction + "x";
+                } else {
+                    txt = zoomSig + "." + zoomFraction + "x";
+                }
                 if (mZoomValueText != null) {
-                    mZoomValueText.setText(zoomValue + "x");
+                    mZoomValueText.setText(txt);
                 }
             }
         });
+    }
+
+    private float getZoomValue(int progress,SeekBar seekBar){
+        float zoomProgress = progress + mZoomFixedValue * 100;
+        if (mZoomRatioSupport && mZoomFixedValue <1){
+            int max = seekBar.getMax();
+            int min = seekBar.getMin();
+            int range = max - min;
+            float delta = ((int)(range*mZoomBarRatio))*1.0f;
+            if (progress <= delta){
+                zoomProgress = (mZoomFixedValue + (1-mZoomFixedValue)*(progress/delta))*100f;
+            } else {
+                zoomProgress = 100f+((progress - delta)/(range-delta))*(mZoomMaxValue-1)*100f;
+            }
+        }
+
+        float zoomValue =zoomProgress / 100f;
+        return zoomValue;
+    }
+
+    private void setZoomBarProgress(float zoomValue,SeekBar seekBar){
+        int zoomSig = Math.round(zoomValue * 100) / 100;
+        int zoomFraction = Math.round(zoomValue * 100) % 100;
+        int  progress = zoomSig * 100 + zoomFraction - ((int)(100 * mZoomFixedValue));
+        if (mZoomRatioSupport && mZoomFixedValue <1){
+            int max = seekBar.getMax();
+            int min = seekBar.getMin();
+            int range = max - min;
+            float delta = ((int)(range*mZoomBarRatio))*1.0f;
+            if (zoomValue < 1.0){
+                progress = (int)((zoomValue-mZoomFixedValue)/(1.0f-mZoomFixedValue)*delta);
+            } else {
+                progress = (int)((zoomValue-1.0f)/(mZoomMaxValue - 1.0f)*(range-delta)+delta);
+            }
+        }
+        seekBar.setProgress(progress);
     }
 
     public void enableZoomSeekBar(boolean enable) {
@@ -935,7 +992,7 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
             mZoomValueText.setText(txt);
         }
         if (mZoomSeekBar != null) {
-            mZoomSeekBar.setProgress(zoomSig * 100 + zoomFraction - ((int)(100 * mZoomFixedValue)));
+            setZoomBarProgress(zoomValue,mZoomSeekBar);
         }
     }
 
@@ -2137,10 +2194,20 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
     }
 
     public void initPhysicalSurfaces(Size logicalPreviewSize,Size[] physicalPreviewSizes){
-        if (mSettingsManager.getPhysicalCameraId() == null)
+        String physical_id = mSettingsManager.getSinglePhysicalCamera();
+        if (mSettingsManager.getPhysicalCameraId() == null && physical_id == null)
             return;
-        mPreviewCount = mSettingsManager.getPhysicalCameraId().size()+1;
-        Set<String> physicalIds = mSettingsManager.getPhysicalCameraId();
+        Set<String> physicalIds;
+        if (physical_id != null) {
+            physicalIds = mSettingsManager.getAllPhysicalCameraId();
+            mPreviewCount = mSettingsManager.getAllPhysicalCameraId().size()+1;
+            mSurfaceView.setZOrderMediaOverlay(true);
+        } else {
+            physicalIds = mSettingsManager.getPhysicalCameraId();
+            mPreviewCount = mSettingsManager.getPhysicalCameraId().size()+1;
+            mSurfaceView.setZOrderMediaOverlay(false);
+        }
+
         Log.d(TAG,"initPhysicalSurfaces count="+mPreviewCount);
 
         mPhysicalHolders[0] = mPhysicalViews[0].getHolder();
@@ -2164,6 +2231,8 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
                         && physicalPreviewSizes[physicalSizeIndex] != null){
                       preview = new Size(physicalPreviewSizes[physicalSizeIndex].getHeight(),
                                 physicalPreviewSizes[physicalSizeIndex].getWidth());
+                } else if(physical_id != null){
+                    preview = new Size(mPreviewHeight,mPreviewWidth);
                 } else {
                     preview = new Size(mPreviewHeight/2,mPreviewWidth/2);
                 }
@@ -2368,16 +2437,16 @@ public class CaptureUI implements FocusOverlayManager.FocusUI,
     }
 
     @Override
-    public void onFocusSucceeded(boolean timeout) {
-        FocusIndicator indicator = getFocusIndicator();
-        if (indicator != null) indicator.showSuccess(timeout);
-    }
-
-    @Override
     public void onFocusFailed(boolean timeOut) {
         FocusIndicator indicator = getFocusIndicator();
         if (indicator != null) indicator.showFail(timeOut);
 
+    }
+
+    @Override
+    public void onFocusSucceeded(boolean timeout) {
+        FocusIndicator indicator = getFocusIndicator();
+        if (indicator != null) indicator.showSuccess(timeout);
     }
 
     @Override
