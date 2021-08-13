@@ -1755,7 +1755,8 @@ public class FilmStripView extends ViewGroup implements BottomControlsListener {
                     return;
                 }
                 updateInsertion(dataID);
-                if (data != null && !data.isPhoto()){
+                //update thumbnail again for heic format, heic orientation only update at uri
+                if (data != null && (!data.isPhoto() || mActivity.getPathFromUri(data.getContentUri()).contains("heic"))){
                     mActivity.updateThumbnail(true);
                 }
             }
