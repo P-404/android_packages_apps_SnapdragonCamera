@@ -720,6 +720,7 @@ public class CaptureModule implements CameraModule, PhotoController,
     private Object mAideLock = new Object();
     private boolean mMnfrCreated = false;
     float mGain;
+    float mAideAdrcGain = 100;
     private TouchTrackFocusRenderer mT2TFocusRenderer;
     private StateNNTrackFocusRenderer mStateNNFocusRenderer;
     private boolean mIsDepthFocus = false;
@@ -1299,6 +1300,8 @@ public class CaptureModule implements CameraModule, PhotoController,
             if (id == getMainCameraId()) {
                 updateFocusStateChange(result);
                 updateAWBCCTAndgains(result);
+                mAideAdrcGain = result.get(adrc_gain);
+                Log.i(TAG,"mAideAdrcGain:" + mAideAdrcGain);
                 updateAECGainAndExposure(result);
                 String physical_id = mSettingsManager.getSinglePhysicalCamera();
                 Face[] faces;
@@ -1350,11 +1353,14 @@ public class CaptureModule implements CameraModule, PhotoController,
                     mMasterCameraId = String.valueOf(byteArray2Int(multiCameraIds, 8));
                 }
                 byte[] ActiveCameraInfos = result.get(ActiveCameraInfo);
-                if(ActiveCameraInfos != null) {
-                    int num = byteArray2Int(ActiveCameraInfos, 0);
-                    for(int y =1;y<=num;y++){
-                        int activeId = byteArray2Int(ActiveCameraInfos, y*4);
-                        mActiveCameraIds.add(activeId);
+                synchronized (mActiveCameraIds) {
+                    mActiveCameraIds.clear();
+                    if(ActiveCameraInfos != null) {
+                        int num = byteArray2Int(ActiveCameraInfos, 0);
+                        for(int y =1;y<=num;y++){
+                            int activeId = byteArray2Int(ActiveCameraInfos, y*4);
+                            mActiveCameraIds.add(activeId);
+                        }
                     }
                 }
             }
@@ -3763,7 +3769,8 @@ public class CaptureModule implements CameraModule, PhotoController,
                         mSettingsManager.getCalculatedFocusDistance()));
             }
             lux_index_threadhold = PersistUtil.getLuxIdxThreadhold();
-            Log.i(TAG, "setsemfnr enabled, mAECLuxIndex: " + mAECLuxIndex + ",lux_index_threadhold:" + lux_index_threadhold);
+            Log.i(TAG, "set aide tags, mAECLuxIndex: " + mAECLuxIndex + ",lux_index_threadhold:" + lux_index_threadhold + ",isSwMfnrEnabled:" + isSwMfnrEnabled()
+                + ",isAIDEEnabled:" + isAIDEEnabled() + ",isAIDE2Enabled: "+ isAIDE2Enabled());
             //apply swmfnr and aide param
             try {
                 captureBuilder.set(CaptureModule.isSWMFEnabled, (byte)(isSwMfnrEnabled() ? 0x01 : 0x00));
@@ -3842,10 +3849,13 @@ public class CaptureModule implements CameraModule, PhotoController,
                                 if(mAECLuxIndex >= lux_index_threadhold){//for low light, only HWMFNR, will not add ds image
                                     captureBuilder.addTarget(mAideDs4ImageReader[getIndexByPhysicalId(mMasterCameraId)].getSurface());
                                 }
-                                if(mActiveCameraIds.size() != 0){
-                                    for (int activeId : mActiveCameraIds) {
-                                        if(activeId != getIndexByPhysicalId(mMasterCameraId)){
-                                            captureBuilder.addTarget(mAideFullImageReader[activeId].getSurface());
+                                synchronized (mActiveCameraIds) {
+                                    if(mActiveCameraIds.size() > 1 ){
+                                        for (int activeId : mActiveCameraIds) {
+                                            if(activeId != Integer.valueOf(mMasterCameraId)){
+                                                Log.i(TAG,"add activeId request: " + activeId);
+                                                captureBuilder.addTarget(mAideFullImageReader[getIndexByPhysicalId(Integer.toString(activeId))].getSurface());
+                                            }
                                         }
                                     }
                                 }
@@ -4232,6 +4242,8 @@ public class CaptureModule implements CameraModule, PhotoController,
                                     CaptureRequest request,
                                     CaptureFailure result) {
             Log.d(TAG, "onCaptureFailed");
+            unlockFocus(getMainCameraId());
+            enableShutterButtonOnMainThread(getMainCameraId());
         }
 
         @Override
@@ -4244,7 +4256,6 @@ public class CaptureModule implements CameraModule, PhotoController,
             int id = getMainCameraId();
             int orientation = CameraUtil.getJpegRotation(id,mOrientation);
             int quality = getQualityNumber(mSettingsManager.getValue(SettingsManager.KEY_JPEG_QUALITY));
-            float adrcGain = 100;
             unlockFocus(id);
             enableShutterButtonOnMainThread(id);
             if(mAECLuxIndex < lux_index_threadhold){//low light only do HWMFNR and no need to crop
@@ -4286,7 +4297,7 @@ public class CaptureModule implements CameraModule, PhotoController,
             srcDsInputUV.put(dsinputC);
 
             AIDEV2ProcessFrameArgs aideV2Args = new AIDEV2ProcessFrameArgs(inputFrameDim, downFrameDim, srcInputY, srcInputUV, srcDsInputY, srcDsInputUV,
-                    title, cropRegion, mCaptureResult, mPictureSize, denoiseStrengthParam, adrcGain, (int)(mRGain*1024), (int)(mBGain*1024), (int)(mGGain*1024), orientation, quality);
+                    title, cropRegion, mCaptureResult, mPictureSize, denoiseStrengthParam, mAideAdrcGain, (int)(mRGain*1024), (int)(mBGain*1024), (int)(mGGain*1024), orientation, quality);
 
             mAideFullImage.close();
             mAideFullImage = null;
@@ -7354,7 +7365,9 @@ public class CaptureModule implements CameraModule, PhotoController,
         mPreviewSize = getOptimalPreviewSize(mPictureSize, prevSizes);
         Size[] thumbSizes = mSettingsManager.getSupportedThumbnailSizes(getMainCameraId());
         mPictureThumbSize = getOptimalPreviewSize(mPictureSize, thumbSizes); // get largest thumb size
-        getMaxAide2Size();
+        if(isAIDE2Enabled()){
+            getMaxAide2Size();
+        }
     }
 
     private void getMaxAide2Size(){
