@@ -345,7 +345,7 @@ public class AIDenoiserService extends Service {
 
     public void startAideV2Process(ByteBuffer inputY, ByteBuffer inputC, ByteBuffer dsinputY, ByteBuffer dsinputC,
             int[] inputFrameDim, int[] downFrameDim, long expTimeInNs, int iso, float denoiseStrength, float adrcGain, int rGain, int bGain, int gGain, int imageformat, int mode){
-        Log.i(TAG,"startAideV2Process, expTimeInNs：" + expTimeInNs + ",iso:" + iso + ",denoiseStrength:" +denoiseStrength + ",rGain:" + rGain + "rGain:" + bGain + ",gGain:" + gGain );
+        Log.i(TAG,"startAideV2Process, expTimeInNs：" + expTimeInNs + ",iso:" + iso + ",denoiseStrength:" +denoiseStrength + ",adrcGain:" + adrcGain +",rGain:" + rGain + "rGain:" + bGain + ",gGain:" + gGain );
         mWidth = inputFrameDim[0];
         mHeight = inputFrameDim[1];
         mStrideY = inputFrameDim[2];
