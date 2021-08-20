@@ -3827,6 +3827,9 @@ public class CaptureModule implements CameraModule, PhotoController,
                 }
                 if (mNumFramesArrived.get() >= mShotNum) {
                     mLongshotActive = false;
+                    mNumFramesArrived.getAndSet(0);
+                    return;
+
                 }
                 Log.d(TAG, "captureStillPictureForLongshot onCaptureCompleted: " + mNumFramesArrived.get() + " " + mShotNum);
 
@@ -3978,7 +3981,7 @@ public class CaptureModule implements CameraModule, PhotoController,
             mPreviewRequestBuilder[id].setTag("preview");
             burstList.add(mPreviewRequestBuilder[id].build());
             float previewNum = 1.0f;
-            for (int i = 0; i < PersistUtil.getLongshotShotLimit() - 1; i++) {
+            for (int i = 0; i <= PersistUtil.getLongshotShotLimit() - 1; i++) {
                 if ((previewNum - burstShotFpsNums) >= 0.0) {
                     captureBuilder.setTag("capture");
                     burstList.add(captureBuilder.build());
