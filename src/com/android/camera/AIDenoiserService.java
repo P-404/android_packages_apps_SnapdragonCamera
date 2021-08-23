@@ -344,7 +344,7 @@ public class AIDenoiserService extends Service {
 
 
     public void startAideV2Process(ByteBuffer inputY, ByteBuffer inputC, ByteBuffer dsinputY, ByteBuffer dsinputC,
-            int[] inputFrameDim, int[] downFrameDim, long expTimeInNs, int iso, float denoiseStrength, float adrcGain, int rGain, int bGain, int gGain){
+            int[] inputFrameDim, int[] downFrameDim, long expTimeInNs, int iso, float denoiseStrength, float adrcGain, int rGain, int bGain, int gGain, int imageformat, int mode){
         Log.i(TAG,"startAideV2Process, expTimeInNs：" + expTimeInNs + ",iso:" + iso + ",denoiseStrength:" +denoiseStrength + ",rGain:" + rGain + "rGain:" + bGain + ",gGain:" + gGain );
         mWidth = inputFrameDim[0];
         mHeight = inputFrameDim[1];
@@ -352,7 +352,7 @@ public class AIDenoiserService extends Service {
         mStrideC = inputFrameDim[3];
         int[] outputFrameDim = {mWidth, mHeight, mStrideY, mStrideC};
         mAideOut = ByteBuffer.allocate(mStrideY*mHeight *3/2);
-        int result = mAideUtil.nativeAIDenoiserEngineCreateV2(inputFrameDim, downFrameDim, outputFrameDim);
+        int result = mAideUtil.nativeAIDenoiserEngineCreateV2(inputFrameDim, downFrameDim, outputFrameDim, imageformat, mode);
         Log.i(TAG,"AideV2Process create result: " + result);
         result = mAideUtil.nativeAIDenoiserEngineProcessFrameV2(inputY,inputC, dsinputY,dsinputC, mAideOut.array(), expTimeInNs,
             iso, denoiseStrength, adrcGain, rGain, bGain, gGain, mOutRoi);

@@ -42,7 +42,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern "C" {
 #endif
 JNIEXPORT jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreateV2(
-        JNIEnv* env, jobject thiz, jintArray pInputFrameDim, jintArray pDsInputFrameDim, jintArray pOutputFrameDim);
+        JNIEnv* env, jobject thiz, jintArray pInputFrameDim, jintArray pDsInputFrameDim, jintArray pOutputFrameDim,jint imageformat, jint mode);
 JNIEXPORT jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineProcessFrameV2(
         JNIEnv *env, jobject thiz, jobjectArray inputY,jobjectArray inputC, jobjectArray dsinputY, jobjectArray dsinputC,jbyteArray output,
         jlong expTimeInNs, jint iso, jfloat denoiseStrength, jfloat adrcGain, jint rGain, jint bGain, jint gGain, jintArray roi);
@@ -60,7 +60,7 @@ uint32_t height;
 uint32_t stride;
 
 jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreateV2(
-        JNIEnv* env, jobject thiz, jintArray pInputFrameDim, jintArray pDsInputFrameDim, jintArray pOutputFrameDim)
+        JNIEnv* env, jobject thiz, jintArray pInputFrameDim, jintArray pDsInputFrameDim, jintArray pOutputFrameDim,jint imageformat, jint mode)
 {
     jint *inputFrameDim = env->GetIntArrayElements(pInputFrameDim, 0);
     AIDE_FrameDim _pInputFrameDim;
@@ -83,7 +83,18 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreateV
     _outputFrameDim.height = (uint32_t)outputFrameDim[1];
     _outputFrameDim.heightStride = (uint32_t)outputFrameDim[2];
     _outputFrameDim.widthStride = (uint32_t)inputFrameDim[3];
-    int createResult = AIDenoiserEngine_Create(&_pInputFrameDim, &_pDsInputFrameDim, &_outputFrameDim, &handle);
+
+    AIDE_ImgFormat format_input = AIDE_NV21;
+    if((uint32_t)imageformat == 0){
+        format_input = AIDE_NV12;
+    }
+    AIDE_Mode mode_input = AIDE1;
+    if((uint32_t)mode == 1){
+        mode_input = AIDE2;
+    }else if ((uint32_t)mode == 2){
+        mode_input = AIDE2_SAT;
+    }
+    int createResult = AIDenoiserEngine_Create(&_pInputFrameDim, &_pDsInputFrameDim, &_outputFrameDim, format_input, mode_input, &handle);
     printf("aide create,createResult=%d,handle=%d", createResult, handle);
 
     //set out put

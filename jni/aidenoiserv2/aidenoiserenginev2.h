@@ -58,6 +58,19 @@ typedef enum {
     AIDE_ERRORCODE_MAX,
 } AIDE_ErroCode;
 
+// Input/Output format
+typedef enum {
+    AIDE_NV12 = 0,
+    AIDE_NV21,
+} AIDE_ImgFormat;
+
+// Operation Mode for AIDE
+typedef enum {
+    AIDE1 = 0,  // AIDE Operates in 1.0 mode
+    AIDE2,      // AIDE Operates in 2.0 mode
+    AIDE2_SAT,  // AIDE Operates in 2.0 mode with saturation correction
+} AIDE_Mode;
+
 const char *AIDenoiserEngine_GetErrCodeStr(unsigned int code)
 {
     static const char *strs[] = { "AIDE_SUCCESS",
@@ -130,11 +143,13 @@ typedef struct {
 //////////////////////////////////////////////////////////////////////
 unsigned int AIDenoiserEngine_Create(
     AIDE_FrameDim  *pInputFrameDim,   // Frame resolution of input
-                                      // Only supported format is NV12
+                                      // Only supported format is NV12/NV21
     AIDE_FrameDim  *pDsInputFrameDim, // Frame resolution of downscaled input
-                                      // Only supported format is NV12
+                                      // Only supported format is NV12/NV21
     AIDE_FrameDim  *pOutputFrameDim,  // Frame resolution of output (needs to be same as input)
-                                      // Only supported format is NV12
+                                      // Only supported format is NV12/NV21
+    AIDE_ImgFormat  imageFormat,      // Input/Output Image format. NV12/NV21
+    AIDE_Mode       mode,             // Operation mode for AIDenoiser
     AIDE_Handle    *pHandle           // Output handle of the instance created
 );
 

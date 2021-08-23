@@ -4289,10 +4289,12 @@ public class CaptureModule implements CameraModule, PhotoController,
             mAideDownImage.close();
             mAideDownImage = null;
             namedEntity = null;
+            String format = mSettingsManager.getValue(SettingsManager.KEY_AI_DENOISER_FORMAT);
+            String mode = mSettingsManager.getValue(SettingsManager.KEY_AI_DENOISER_MODE);
             //process aidev2
             synchronized (mAideLock) {
                 mActivity.getAIDenoiserService().startAideV2Process(aideV2Args.getsrcInputY(), aideV2Args.getsrcInputUV(), aideV2Args.getsrcDsInputY(),aideV2Args.getsrcDsInputUV(),
-                        aideV2Args.getInputFrameDim(), aideV2Args.getdownFrameDim(), 100000, 100, aideV2Args.getdenoiseStrengthParam(), aideV2Args.getadrcGain(), aideV2Args.getrGain(), aideV2Args.getbGain(), aideV2Args.getgGain());
+                        aideV2Args.getInputFrameDim(), aideV2Args.getdownFrameDim(), 100000, 100, aideV2Args.getdenoiseStrengthParam(), aideV2Args.getadrcGain(), aideV2Args.getrGain(), aideV2Args.getbGain(), aideV2Args.getgGain(), Integer.parseInt(format), Integer.parseInt(mode));
                 byte[] srcImage = mActivity.getAIDenoiserService().generateAideV2Image(mActivity, aideV2Args.getorientation(), aideV2Args.getpictureSize(), aideV2Args.getcropRegion(), aideV2Args.getcaptureResult(), aideV2Args.getquality());
                 mActivity.getMediaSaveService().addImage(
                         srcImage, aideV2Args.gettitle(), 0L, null,
