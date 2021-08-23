@@ -282,6 +282,7 @@ public class CaptureModule implements CameraModule, PhotoController,
     private float[] mAWBDecisionAfterTC = new float[2];
     private float[] mAECSensitivity = new float[3];
     private float mAECLuxIndex = -1.0f;
+    private float lux_index_threadhold = 320;
     private float mAdrcGain = -1.0f;
     private float mDarkBoostGain = -1.0f;
 
@@ -3761,9 +3762,10 @@ public class CaptureModule implements CameraModule, PhotoController,
                 applyFocusDistance(captureBuilder, String.valueOf(
                         mSettingsManager.getCalculatedFocusDistance()));
             }
+            lux_index_threadhold = PersistUtil.getLuxIdxThreadhold();
+            Log.i(TAG, "setsemfnr enabled, mAECLuxIndex: " + mAECLuxIndex + ",lux_index_threadhold:" + lux_index_threadhold);
             //apply swmfnr and aide param
             try {
-                Log.i(TAG, "setsemfnr enabled, mAECLuxIndex: " + mAECLuxIndex);
                 captureBuilder.set(CaptureModule.isSWMFEnabled, (byte)(isSwMfnrEnabled() ? 0x01 : 0x00));
                 captureBuilder.set(CaptureModule.isAIDEEnabled, (byte)(isAIDEEnabled() && mAECLuxIndex >= 320 ? 0x01 : 0x00));
             } catch (IllegalArgumentException e) {
@@ -3773,7 +3775,7 @@ public class CaptureModule implements CameraModule, PhotoController,
             //apply hwmfnr and aide2 param
             try {
                 captureBuilder.set(CaptureModule.isHWMFNREnabled, (byte)((isMFNREnabled() && mSettingsManager.isHWMFNRSupport()) ? 0x01 : 0x00));
-                captureBuilder.set(CaptureModule.isAIDE2Enabled, (byte)(isAIDE2Enabled() ? 0x01 : 0x00));
+                captureBuilder.set(CaptureModule.isAIDE2Enabled, (byte)(isAIDE2Enabled() && mAECLuxIndex >= lux_index_threadhold ? 0x01 : 0x00));
             } catch (IllegalArgumentException e) {
                 Log.i(TAG,"can not read hwmfnr enable or aide2 enable tag");
             }
@@ -3837,7 +3839,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                             Set<String> physical_ids = mSettingsManager.getAllPhysicalCameraId();
                             if(physical_ids != null && physical_ids.size() != 0){
                                 captureBuilder.addTarget(mAideFullImageReader[getIndexByPhysicalId(mMasterCameraId)].getSurface());
-                                if(mAECLuxIndex >= 320){//for low light, only HWMFNR, will not add ds image
+                                if(mAECLuxIndex >= lux_index_threadhold){//for low light, only HWMFNR, will not add ds image
                                     captureBuilder.addTarget(mAideDs4ImageReader[getIndexByPhysicalId(mMasterCameraId)].getSurface());
                                 }
                                 if(mActiveCameraIds.size() != 0){
@@ -3849,7 +3851,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                                 }
                             }else {
                                 captureBuilder.addTarget(mAideFullImageReader[getMainCameraId()].getSurface());
-                                if(mAECLuxIndex >= 320){//for low light, only HWMFNR, will not add ds image
+                                if(mAECLuxIndex >= lux_index_threadhold){//for low light, only HWMFNR, will not add ds image
                                     captureBuilder.addTarget(mAideDs4ImageReader[getMainCameraId()].getSurface());
                                 }
                             }
@@ -4245,9 +4247,10 @@ public class CaptureModule implements CameraModule, PhotoController,
             float adrcGain = 100;
             unlockFocus(id);
             enableShutterButtonOnMainThread(id);
-            if(mAECLuxIndex < 320){//low light only do HWMFNR and no need to crop
+            if(mAECLuxIndex < lux_index_threadhold){//low light only do HWMFNR and no need to crop
                 mActivity.getAIDenoiserService().wantImagesNum(1);
                 byte[] yuv = getYUVFromImage(mAideFullImage);
+                if (TRACE_DEBUG) Trace.beginSection("save jpeg for aide2");
                 byte[] jpeg = mActivity.getAIDenoiserService().nv21ToJpeg(yuv, orientation, mCaptureResult, mSupportedAide2Size, quality, mAideFullImage.getPlanes()[0].getRowStride());
                 mActivity.getMediaSaveService().addImage(
                         jpeg, title, 0L, null,
@@ -4255,6 +4258,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                         orientation, null, getMediaSavedListener(),
                         mActivity.getContentResolver(), "jpeg");
                 mActivity.updateThumbnail(jpeg);
+                if (TRACE_DEBUG) Trace.endSection();
                 return;
             }
 
@@ -4293,8 +4297,11 @@ public class CaptureModule implements CameraModule, PhotoController,
             String mode = mSettingsManager.getValue(SettingsManager.KEY_AI_DENOISER_MODE);
             //process aidev2
             synchronized (mAideLock) {
+                if (TRACE_DEBUG) Trace.beginSection("aide2 process");
                 mActivity.getAIDenoiserService().startAideV2Process(aideV2Args.getsrcInputY(), aideV2Args.getsrcInputUV(), aideV2Args.getsrcDsInputY(),aideV2Args.getsrcDsInputUV(),
                         aideV2Args.getInputFrameDim(), aideV2Args.getdownFrameDim(), 100000, 100, aideV2Args.getdenoiseStrengthParam(), aideV2Args.getadrcGain(), aideV2Args.getrGain(), aideV2Args.getbGain(), aideV2Args.getgGain(), Integer.parseInt(format), Integer.parseInt(mode));
+                if (TRACE_DEBUG) Trace.endSection();
+                if (TRACE_DEBUG) Trace.beginSection("save jpeg for aide2");
                 byte[] srcImage = mActivity.getAIDenoiserService().generateAideV2Image(mActivity, aideV2Args.getorientation(), aideV2Args.getpictureSize(), aideV2Args.getcropRegion(), aideV2Args.getcaptureResult(), aideV2Args.getquality());
                 mActivity.getMediaSaveService().addImage(
                         srcImage, aideV2Args.gettitle(), 0L, null,
@@ -4303,6 +4310,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                         aideV2Args.getorientation(), null, getMediaSavedListener(),
                         mActivity.getContentResolver(), "jpeg");
                 mActivity.updateThumbnail(srcImage);
+                if (TRACE_DEBUG) Trace.endSection();
             }
         }
     };
@@ -7365,7 +7373,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                 Log.i(TAG,"getMaxAide2Size, physicalId:" + physicalId + ",yuv max:" + yuvSizeList.get(0) +",raw max:" +rawSizeList.get(0) );
             }
             maxSizes.sort((o1,o2) -> o2.getWidth()*o2.getHeight() - o1.getWidth()*o1.getHeight());
-            mSupportedAide2Size = maxSizes.get(2);
+            mSupportedAide2Size = maxSizes.get(maxSizes.size()-1);
         }else {
             Size[] yuvSizes = mSettingsManager.getSupportedOutputSize(getMainCameraId(), ImageFormat.YUV_420_888);
             List<Size> yuvSizeList = Arrays.asList(yuvSizes);
