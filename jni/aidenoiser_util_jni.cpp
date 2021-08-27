@@ -30,6 +30,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <jni.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 #include "aidenoiserengine.h"
 
 #ifdef __ANDROID__
@@ -40,6 +41,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef __cplusplus
 extern "C" {
 #endif
+JNIEXPORT jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserLoadJni(JNIEnv* env, jobject thiz);
 JNIEXPORT jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreate(
         JNIEnv* env, jobject thiz, jintArray pInputFrameDim, jintArray pOutputFrameDim);
 JNIEXPORT jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineProcessFrame(
@@ -92,6 +94,7 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreate(
     delete [] pOutputFrame;
     return createResult;
 }
+
 void WriteData(FILE *fp, unsigned char *pStart, int width, int height, int stride)
 {
     for (int i = 0; i < height; i++)
@@ -157,4 +160,19 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineDestroy
         JNIEnv* env, jobject thiz)
 {
     return AIDenoiserEngine_Destroy(handle);
+}
+
+jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserLoadJni(JNIEnv* env, jobject thiz)
+{
+    static void     *dlHandle  = NULL;
+
+    dlHandle = dlopen("/vendor/lib64/libaidenoiserv2.so", RTLD_NOW);
+    if(dlHandle != NULL){
+        printf("load aidenoiserv2 is successful");
+        return 2;
+    } else{
+        dlHandle = dlopen("/vendor/lib64/libaidenoiser.so", RTLD_NOW);
+        printf("load aidenoiser is successful");
+        return 1;
+    }
 }

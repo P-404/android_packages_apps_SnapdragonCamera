@@ -1608,6 +1608,28 @@ for time lapse recording -->
         <item>@string/pref_camera2_ai_denoiser_entry_value_enable</item>
     </string-array>
 
+    <string-array name="pref_camera2_ai_denoiser_format_entries" translatable="false">
+        <item>@string/pref_camera2_ai_denoiser_format_entry_nv12</item>
+        <item>@string/pref_camera2_ai_denoiser_format_entry_nv21</item>
+    </string-array>
+
+    <string-array name="pref_camera2_ai_denoiser_format_entryvalues" translatable="false">
+        <item>@string/pref_camera2_ai_denoiser_format_entry_value_nv12</item>
+        <item>@string/pref_camera2_ai_denoiser_format_entry_value_nv21</item>
+    </string-array>
+
+    <string-array name="pref_camera2_ai_denoiser_mode_entries" translatable="false">
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_aide1</item>
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_aide2</item>
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_aide_sat</item>
+    </string-array>
+
+    <string-array name="pref_camera2_ai_denoiser_mode_entryvalues" translatable="false">
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_value_aide1</item>
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_value_aide2</item>
+        <item>@string/pref_camera2_ai_denoiser_mode_entry_value_aide_sat</item>
+    </string-array>
+
     <string-array name="pref_camera2_insensor_zoom_entries" translatable="false">
         <item>@string/pref_camera2_insensor_zoom_entry_disable</item>
         <item>@string/pref_camera2_insensor_zoom_entry_enable</item>

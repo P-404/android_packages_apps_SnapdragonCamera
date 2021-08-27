@@ -768,6 +768,20 @@
         camera:entryValues="@array/pref_camera2_ai_denoiser_entryvalues" />
 
     <ListPreference
+        camera:key="pref_camera2_ai_denoiser_format_key"
+        camera:defaultValue="@string/pref_camera2_ai_denoiser_format_default"
+        camera:title="@string/pref_camera2_ai_denoiser_format_title"
+        camera:entries="@array/pref_camera2_ai_denoiser_format_entries"
+        camera:entryValues="@array/pref_camera2_ai_denoiser_format_entryvalues" />
+
+    <ListPreference
+        camera:key="pref_camera2_ai_denoiser_mode_key"
+        camera:defaultValue="@string/pref_camera2_ai_denoiser_mode_default"
+        camera:title="@string/pref_camera2_ai_denoiser_mode_title"
+        camera:entries="@array/pref_camera2_ai_denoiser_mode_entries"
+        camera:entryValues="@array/pref_camera2_ai_denoiser_mode_entryvalues" />
+
+    <ListPreference
         camera:key="pref_camera2_insensor_zoom_key"
         camera:defaultValue="@string/pref_camera2_insensor_zoom_default"
         camera:title="@string/pref_camera2_insensor_zoom_title"

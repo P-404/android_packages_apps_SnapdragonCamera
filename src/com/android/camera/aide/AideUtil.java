@@ -29,15 +29,19 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package com.android.camera.aide;
 
+import java.nio.ByteBuffer;
 import android.util.Log;
 import android.os.SystemClock;
 import com.android.camera.CameraActivity;
 import com.android.camera.CaptureModule;
-import java.nio.ByteBuffer;
+import android.util.Size;
+import android.hardware.camera2.TotalCaptureResult;
+import android.graphics.Rect;
 
 public class AideUtil {
     private static final String TAG = "SnapCam_AideUtil";
     private static boolean mIsSupported = false;
+    private static boolean mIsSupported2 = false;
 
     public AideUtil() {}
 
@@ -50,6 +54,15 @@ public class AideUtil {
 
     public native int nativeAIDenoiserEngineDestroy();
 
+    public native int nativeAIDenoiserEngineCreateV2(int[] pInputFrameDim, int[] pDsInputFrameDim, int[] pOutputFrameDim, int imageformat, int mode);
+
+    public native int nativeAIDenoiserEngineProcessFrameV2(ByteBuffer inputY, ByteBuffer inputC, ByteBuffer dsinputY, ByteBuffer dsinput, byte[] output,
+        long expTimeInNs, int iso, float denoiseStrength, float adrcGain, int rGain, int bGain, int gGain, int[] roi);
+
+    public native int nativeAIDenoiserEngineAbortV2();
+
+    public native int nativeAIDenoiserEngineDestroyV2();
+
     static {
         try {
             System.loadLibrary("jni_aidenoiserutil");
@@ -59,10 +72,21 @@ public class AideUtil {
             mIsSupported = false;
             Log.d(TAG, e.toString());
         }
+        try {
+            System.loadLibrary("jni_aidenoiserutilv2");
+            Log.i(TAG, "load libjni_aidenoiserutilv2 successfully");
+            mIsSupported2 = true;
+        } catch (UnsatisfiedLinkError e) {
+            Log.d(TAG, e.toString());
+        }
     }
 
     public static boolean isAideSupported(){
         return mIsSupported;
+    }
+
+    public static boolean isAide2Supported(){
+        return mIsSupported2;
     }
 
     public static class AIDEFrameDim {
@@ -101,6 +125,114 @@ public class AideUtil {
             this.rGain = rGain;
             this.bGain = bGain;
             this.gGain = gGain;
+        }
+    }
+
+    public static class AIDEV2ProcessFrameArgs {
+        int[] inputFrameDim;
+        int[] downFrameDim;
+        ByteBuffer srcInputY;
+        ByteBuffer srcInputUV;
+        ByteBuffer srcDsInputY;
+        ByteBuffer srcDsInputUV;
+        String title;
+        Rect cropRegion;
+        TotalCaptureResult captureResult;
+        Size pictureSize;
+        float denoiseStrengthParam;
+        float adrcGain;
+        int rGain;
+        int bGain;
+        int gGain;
+        int orientation;
+        int quality;
+
+        public AIDEV2ProcessFrameArgs(int[] inputFrameDim, int[] downFrameDim, ByteBuffer srcInputY, ByteBuffer srcInputUV, ByteBuffer srcDsInputY, ByteBuffer srcDsInputUV,
+                String title, Rect cropRegion, TotalCaptureResult captureResult, Size pictureSize, float denoiseStrengthParam, float adrcGain, int rGain, int bGain, int gGain, int orientation, int quality) {
+            this.inputFrameDim = inputFrameDim;
+            this.downFrameDim = downFrameDim;
+            this.srcInputY = srcInputY;
+            this.srcInputUV = srcInputUV;
+            this.srcDsInputY = srcDsInputY;
+            this.srcDsInputUV = srcDsInputUV;
+            this.title = title;
+            this.cropRegion = cropRegion;
+            this.captureResult = captureResult;
+            this.pictureSize = pictureSize;
+            this.denoiseStrengthParam = denoiseStrengthParam;
+            this.adrcGain = adrcGain;
+            this.rGain = rGain;
+            this.bGain = bGain;
+            this.gGain = gGain;
+            this.orientation = orientation;
+            this.quality = quality;
+        }
+
+        public int[] getInputFrameDim(){
+            return inputFrameDim;
+        }
+
+        public int[] getdownFrameDim(){
+            return downFrameDim;
+        }
+
+        public ByteBuffer getsrcInputY(){
+            return srcInputY;
+        }
+
+        public ByteBuffer getsrcInputUV(){
+            return srcInputUV;
+        }
+
+        public ByteBuffer getsrcDsInputY(){
+            return srcDsInputY;
+        }
+
+        public ByteBuffer getsrcDsInputUV(){
+            return srcDsInputUV;
+        }
+
+        public String gettitle(){
+            return title;
+        }
+
+        public Rect getcropRegion(){
+            return cropRegion;
+        }
+
+        public TotalCaptureResult getcaptureResult(){
+            return captureResult;
+        }
+
+        public Size getpictureSize(){
+            return pictureSize;
+        }
+
+        public float getdenoiseStrengthParam(){
+            return denoiseStrengthParam;
+        }
+
+        public float getadrcGain(){
+            return adrcGain;
+        }
+
+        public int getrGain(){
+            return rGain;
+        }
+        public int getbGain(){
+            return bGain;
+        }
+
+        public int getgGain(){
+            return gGain;
+        }
+
+        public int getorientation(){
+            return orientation;
+        }
+
+        public int getquality(){
+            return quality;
         }
     }
 }

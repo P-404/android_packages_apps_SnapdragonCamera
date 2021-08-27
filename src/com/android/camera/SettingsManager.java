@@ -265,6 +265,8 @@ public class SettingsManager implements ListMenu.SettingsListener {
     public static final String KEY_HVX_MFHDR = "pref_camera2_hvx_mfhdr_key";
     public static final String KEY_QLL = "pref_camera2_qll_key";
     public static final String KEY_AI_DENOISER = "pref_camera2_ai_denoiser_key";
+    public static final String KEY_AI_DENOISER_FORMAT = "pref_camera2_ai_denoiser_format_key";
+    public static final String KEY_AI_DENOISER_MODE = "pref_camera2_ai_denoiser_mode_key";
     public static final String KEY_INSENSOR_ZOOM = "pref_camera2_insensor_zoom_key";
 
     public static final String KEY_RAW_REPROCESS_TYPE = "pref_camera2_raw_reprocess_key";
@@ -2190,11 +2192,35 @@ public class SettingsManager implements ListMenu.SettingsListener {
         return isSupported;
     }
 
+    public boolean isAIDE2Supported() {
+        boolean isSupported = false;
+        try {
+            isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.isAIDE2Supported)) == 1;
+            Log.i(TAG,"isAIDE2Supported: " + isSupported);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.isAIDE2Supported.toString());
+        }
+        return isSupported;
+    }
+
     public boolean isSWMFNRSupport() {
         boolean isSupported = false;
         try {
             //set "CustomNoiseReduction" only if MFNRType is 1 i.e; for Lahaina, set "isSWMFEnabled" only if MFNRType is 2 i.e; for Mannar..
             isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType)) == 2;
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "cannot find vendor tag: " +
+                    CaptureModule.MFNRType.toString());
+        }
+        return isSupported;
+    }
+
+    public boolean isHWMFNRSupport() {
+        boolean isSupported = false;
+        try {
+            //set "CustomNoiseReduction" only if MFNRType is 1 i.e; for Lahaina, set "isSWMFEnabled" only if MFNRType is 2 i.e; for Mannar..
+            isSupported = (mCharacteristics.get(getCurrentCameraId()).get(CaptureModule.MFNRType)) == 1;
         } catch (IllegalArgumentException e) {
             Log.w(TAG, "cannot find vendor tag: " +
                     CaptureModule.MFNRType.toString());

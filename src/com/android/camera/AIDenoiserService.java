@@ -306,7 +306,6 @@ public class AIDenoiserService extends Service {
     }
 
     public byte[] generateImage(CameraActivity activity,boolean isMfnr, int orientation, Size pictureSize, Rect rect, TotalCaptureResult captureResult, int quality){
-
         Log.d(TAG,"src mstrideY="+mStrideY+" mStrideC="+mStrideC);
         int dataLength = mStrideY * mHeight * 3 /2;
         byte[] srcImage = new byte[dataLength];
@@ -338,6 +337,57 @@ public class AIDenoiserService extends Service {
         mActivity.getMediaSaveService().addRawImage(srcImage,"aftercrop","yuv");
         srcImage = nv21ToUpscaleJpeg(srcImage,orientation,rect.width(),rect.height(),
                 pictureSize.getWidth(), pictureSize.getHeight(),captureResult, quality);
+        Log.d(TAG,"test done");
+        System.gc();
+        return srcImage;
+    }
+
+
+    public void startAideV2Process(ByteBuffer inputY, ByteBuffer inputC, ByteBuffer dsinputY, ByteBuffer dsinputC,
+            int[] inputFrameDim, int[] downFrameDim, long expTimeInNs, int iso, float denoiseStrength, float adrcGain, int rGain, int bGain, int gGain, int imageformat, int mode){
+        Log.i(TAG,"startAideV2Process, expTimeInNs：" + expTimeInNs + ",iso:" + iso + ",denoiseStrength:" +denoiseStrength + ",rGain:" + rGain + "rGain:" + bGain + ",gGain:" + gGain );
+        mWidth = inputFrameDim[0];
+        mHeight = inputFrameDim[1];
+        mStrideY = inputFrameDim[2];
+        mStrideC = inputFrameDim[3];
+        int[] outputFrameDim = {mWidth, mHeight, mStrideY, mStrideC};
+        mAideOut = ByteBuffer.allocate(mStrideY*mHeight *3/2);
+        int result = mAideUtil.nativeAIDenoiserEngineCreateV2(inputFrameDim, downFrameDim, outputFrameDim, imageformat, mode);
+        Log.i(TAG,"AideV2Process create result: " + result);
+        result = mAideUtil.nativeAIDenoiserEngineProcessFrameV2(inputY,inputC, dsinputY,dsinputC, mAideOut.array(), expTimeInNs,
+            iso, denoiseStrength, adrcGain, rGain, bGain, gGain, mOutRoi);
+        Log.i(TAG,"AideV2Process process frame result: " + result);
+        //mAideUtil.nativeAIDenoiserEngineAbortV2();
+        mAideUtil.nativeAIDenoiserEngineDestroyV2();
+        Log.i(TAG,"AideV2Process finished");
+    }
+
+    public byte[] generateAideV2Image(CameraActivity activity, int orientation, Size pictureSize, Rect rect, TotalCaptureResult captureResult, int quality){
+        Log.d(TAG,"src mstrideY="+mStrideY+" mStrideC="+mStrideC);
+        int dataLength = mStrideY * mHeight * 3 /2;
+        byte[] srcImage = new byte[dataLength];
+        int offset = mStrideY * mHeight;
+        srcImage = mAideOut.array();
+        activity.getMediaSaveService().addRawImage(srcImage,"beforecrop","yuv");
+        Log.d(TAG,"cropYuvImage, rect:" + rect.toString());
+        if((rect.left&1)==1) {
+            rect.left = rect.left - 1;
+        }
+        if((rect.right&1)==1) {
+            rect.right = rect.right - 1;
+        }
+        if((rect.top&1)==1) {
+            rect.top = rect.top - 1;
+        }
+        if((rect.bottom&1)==1) {
+            rect.bottom = rect.bottom - 1;
+        }
+        Log.d(TAG,"cropYuvImage, rect:" + rect.toString());
+        srcImage = cropYuvImage(srcImage,mStrideY, mWidth, mHeight, rect);
+        activity.getMediaSaveService().addRawImage(srcImage,"aftercrop","yuv");
+        Bitmap bitmap = nv21ToRgbAndResize(activity.getApplicationContext(), srcImage,rect.width(),
+                rect.height(), pictureSize.getWidth(), pictureSize.getHeight());
+        srcImage = bitmapToJpeg(bitmap, orientation, captureResult);
         Log.d(TAG,"test done");
         System.gc();
         return srcImage;
@@ -379,6 +429,10 @@ public class AIDenoiserService extends Service {
         @Override
         public void run() {
         }
+    }
+
+    public void increment(){
+        imagesNum.incrementAndGet(1);
     }
 
     public void resetImagesNum(){
@@ -467,6 +521,17 @@ public class AIDenoiserService extends Service {
         }
 
         return ret;
+    }
+
+    public byte[] nv21ToJpeg(byte[] srcImage, int orientation, TotalCaptureResult result, Size size, int quality, int stride) {
+        BitmapOutputStream bos = new BitmapOutputStream(1024);
+        YuvImage image = new YuvImage(srcImage,ImageFormat.NV21,size.getWidth(),size.getHeight(),
+                new int[]{stride,stride});
+        Rect outRoi = new Rect(0,0,size.getWidth(),size.getHeight());
+        image.compressToJpeg(outRoi, quality, bos);
+        byte[] bytes = bos.getArray();
+        bytes = addExifTags(bytes, orientation, result);
+        return bytes;
     }
 
     public byte[] bitmapToJpeg(Bitmap bitmap, int orientation, TotalCaptureResult result){

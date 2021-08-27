@@ -158,6 +158,8 @@ public class PersistUtil {
             getInt("persist.sys.camera.aide_frame_numbers", 0);
     private static final String PERSIST_CAMERA_MAX_BURST_SHOT_FPS =
             get("persist.sys.camera.maxBurstShotFPS", "0");
+    private static final String PERSIST_CAMERA_LUX_IDX_THREADHOLD =
+            get("persist.sys.camera.lux_idx_threadhold", "320");
 
     public static String getHFRRate() {
         return PERSIST_HFR_LIMIT;
@@ -435,4 +437,8 @@ public class PersistUtil {
     public static int isLiveShotNumbers() {return PERSIST_LIVE_SHOT_NUMBERS; }
 
     public static int getAideFrameNumbers() {return PERSIST_AIDE_FRAME_NUMBERS; }
+
+    public static float getLuxIdxThreadhold(){
+        return Float.parseFloat(PERSIST_CAMERA_LUX_IDX_THREADHOLD);
+    }
 }
