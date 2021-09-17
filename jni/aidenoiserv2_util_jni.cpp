@@ -110,7 +110,7 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineCreateV
     env->SetIntArrayRegion(pOutputFrameDim, 0, 4, (jint *)pOutputFrame);
     env->ReleaseIntArrayElements(pInputFrameDim, inputFrameDim, 0);
     env->ReleaseIntArrayElements(pOutputFrameDim, outputFrameDim, 0);
-    delete pOutputFrame;
+    delete [] pOutputFrame;
     return 0;
 }
 
@@ -150,9 +150,13 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineProcess
     uint8_t* coutputY = (uint8_t*)&(coutput[0]);
     uint8_t* coutputVU = (uint8_t*)&(coutput[stride*height]);
     FILE *inputFile = fopen("/data/data/org.codeaurora.snapcam/files/aidefullinput.yuv", "wb+");
-    WriteData(inputFile, cinputY, width, height, stride);
-    WriteData(inputFile, cinputVU, width, height/2, stride);
-
+    if ((inputFile != NULL)){
+        WriteData(inputFile, cinputY, width, height, stride);
+        WriteData(inputFile, cinputVU, width, height/2, stride);
+        fclose(inputFile);
+    } else {
+        printf( "aidefullinput is NULL");
+    }
     args.pInputLuma = cinputY;
     args.pInputChroma = cinputVU;
     args.pDsInputLuma = cdsinputY;
@@ -161,8 +165,13 @@ jint JNICALL Java_com_android_camera_aide_AideUtil_nativeAIDenoiserEngineProcess
     args.pOutputChroma = coutputVU;
     int result = AIDenoiserEngine_ProcessFrame(handle, &args, NULL);
     FILE *outputFile = fopen("/data/data/org.codeaurora.snapcam/files/aideoutput.yuv", "wb+");
-    WriteData(outputFile, coutputY, width, height, stride);
-    WriteData(outputFile, coutputVU, width, height/2, stride);
+    if ((outputFile != NULL)){
+        WriteData(outputFile, coutputY, width, height, stride);
+        WriteData(outputFile, coutputVU, width, height/2, stride);
+        fclose(outputFile);
+    } else {
+        printf( "aideoutput is NULL");
+    }
     //set out put
     env->ReleaseIntArrayElements(roi, croi, 0);
     return result;
