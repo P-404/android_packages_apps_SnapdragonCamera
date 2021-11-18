@@ -555,9 +555,6 @@ public class CaptureModule implements CameraModule, PhotoController,
     private static final CaptureResult.Key<Float> ratio_safe_to_short =
             new CaptureResult.Key<>("org.quic.camera2.statsconfigs.ratioSafetoShort", Float.class);
 
-    private static final CaptureResult.Key<Float> adrc_gain =
-            new CaptureResult.Key<>("org.quic.camera2.statsconfigs.compenADRCGain", Float.class);
-
     private static final CaptureResult.Key<Float> dark_boost_gain =
             new CaptureResult.Key<>("org.quic.camera2.statsconfigs.compenDarkBoostGain", Float.class);
 
@@ -1303,7 +1300,7 @@ public class CaptureModule implements CameraModule, PhotoController,
             if (id == getMainCameraId()) {
                 updateFocusStateChange(result);
                 updateAWBCCTAndgains(result);
-                mAideAdrcGain = result.get(adrc_gain);
+//                mAideAdrcGain = result.get(adrc_gain);
                 updateAECGainAndExposure(result);
                 String physical_id = mSettingsManager.getSinglePhysicalCamera();
                 Face[] faces;
@@ -1700,8 +1697,7 @@ public class CaptureModule implements CameraModule, PhotoController,
                 aecinfo_data[10] = Float.toString(result.get(ratio_long_to_short));
                 aecinfo_data[11] = Float.toString(result.get(ratio_long_to_safe));
                 aecinfo_data[12] = Float.toString(result.get(ratio_safe_to_short));
-                aecinfo_data[13] = Float.toString(result.get(adrc_gain));
-                aecinfo_data[14] = Float.toString(result.get(dark_boost_gain));
+                aecinfo_data[13] = Float.toString(result.get(dark_boost_gain));
             }catch (NullPointerException|IllegalArgumentException e){
 
             }
